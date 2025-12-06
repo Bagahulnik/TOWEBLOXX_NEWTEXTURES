@@ -1,0 +1,9 @@
+{
+    "coins": 9,
+    "high_score": 34,
+    "unlocked_towers": [
+        1
+    ],
+    "selected_tower": 1,
+    "total_games": 0
+}
