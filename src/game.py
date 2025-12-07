@@ -8,10 +8,11 @@ from src.constants import *
 
 
 class Game:
-    def __init__(self, screen, save_manager, asset_loader):
+    def __init__(self, screen, save_manager, asset_loader, sound_muted=False):
         self.screen = screen
         self.save_manager = save_manager
         self.asset_loader = asset_loader
+        self.sound_muted = sound_muted
 
         self.crane_image = pygame.image.load(f"{ASSETS_PATH}crane.png").convert_alpha()
         self.rope_hook_image = pygame.image.load(f"{ASSETS_PATH}rope_with_hook.png").convert_alpha()
@@ -21,6 +22,9 @@ class Game:
         self.bg_y = SCREEN_HEIGHT - self.bg_big.get_height()
 
         self.sounds = asset_loader.load_sounds()
+        if self.sound_muted:
+            for sound in self.sounds.values():
+                sound.set_volume(0.0)
 
         self.current_tower_id = save_manager.get_selected_tower()
         self.tower_sprites = asset_loader.load_tower_sprites(self.current_tower_id)
@@ -30,10 +34,9 @@ class Game:
 
         self.score = 0
         self.misses = 0
-        self.force = INITIAL_FORCE  # ← стартовая скорость
+        self.force = INITIAL_FORCE
         self.coins_earned = 0
 
-        # ---------- ПЛАВНАЯ АНИМАЦИЯ ФОНА ----------
         self.bg_anim_active = False
         self.bg_anim_progress = 0
         self.bg_anim_target_y = 0
@@ -45,16 +48,13 @@ class Game:
         self.reason_font = pygame.font.Font("freesansbold.ttf", 24)
         self.coins_font = pygame.font.Font("freesansbold.ttf", 24)
 
-        mixer.music.load(f"{ASSETS_PATH}bgm.wav")
-        mixer.music.play(-1)
+        # музыка – глобально в main.py
 
         self.BLINK_EVENT = pygame.USEREVENT + 1
         pygame.time.set_timer(self.BLINK_EVENT, 800)
 
         self.game_over = False
         self.game_over_reason = None
-
-    # ---------- UI ----------
 
     def show_score(self):
         score_text = self.score_font.render(f"Score: {self.score}", True, BLACK)
@@ -65,12 +65,8 @@ class Game:
         )
         self.screen.blit(misses_text, (10, 50))
 
-    # ---------- Фон ----------
-
     def draw_background(self):
         self.screen.blit(self.bg_big, (0, self.bg_y))
-
-    # ---------- Рисование ----------
 
     def draw(self):
         self.draw_background()
@@ -96,22 +92,17 @@ class Game:
             self.tower.display(self.screen, scroll_y=0)
         self.block.display(self.screen, self.tower, scroll_y=0)
 
-    # ---------- События ----------
-
     def handle_game_events(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 if self.block.get_state() == "ready":
                     self.block.drop(self.tower)
 
-    # ---------- Логика ----------
-
     def update(self):
         state = self.block.get_state()
 
-        # ← ПЕРЕДАЁМ ТЕКУЩУЮ СКОРОСТЬ В БЛОК ПЕРЕД swing()
         if state == "ready":
-            self.block.game_force = self.force  # ← передаём ускоренную силу
+            self.block.game_force = self.force
             self.block.swing()
 
         elif state == "dropped":
@@ -121,16 +112,17 @@ class Game:
             if self.block.to_build(self.tower):
                 self.tower.build(self.block)
 
-                # ← ПОСТЕПЕННОЕ УСКОРЕНИЕ СКОРОСТИ КАЧАНИЯ
-                self.force *= 1.015  # +1.5% скорости за каждый блок
+                self.force *= 1.015
 
                 if self.tower.is_golden():
-                    self.sounds['gold'].play()
+                    if not self.sound_muted:
+                        self.sounds['gold'].play()
                     self.score += 2
                     self.save_manager.add_coins(10)
                     self.coins_earned += 10
                 else:
-                    self.sounds['build'].play()
+                    if not self.sound_muted:
+                        self.sounds['build'].play()
                     self.score += 1
                     self.save_manager.add_coins(5)
                     self.coins_earned += 5
@@ -144,8 +136,9 @@ class Game:
             self.block.to_fall(self.tower)
 
             if not self.game_over_reason:
-                self.sounds['fall'].play()
-                self.sounds['over'].play()
+                if not self.sound_muted:
+                    self.sounds['fall'].play()
+                    self.sounds['over'].play()
                 self.game_over_reason = "collapse"
                 self.end_game()
 
@@ -156,7 +149,8 @@ class Game:
 
         elif state == "miss":
             self.misses += 1
-            self.sounds['fall'].play()
+            if not self.sound_muted:
+                self.sounds['fall'].play()
 
             if self.misses >= MAX_MISSES:
                 self.game_over_reason = "misses"
@@ -164,23 +158,18 @@ class Game:
             else:
                 self.block.respawn(self.tower)
 
-        # ---------- ПЛАВНАЯ АНИМАЦИЯ ТОЛЬКО ФОНА ----------
         if self.bg_anim_active:
             self.bg_anim_progress += 1
             progress_ratio = self.bg_anim_progress / BG_SCROLL_DURATION
-            
-            # двигаем ТОЛЬКО фон плавно
+
             self.bg_y = self.bg_anim_target_y * progress_ratio + self.bg_y * (1 - progress_ratio)
-            
+
             if self.bg_anim_progress >= BG_SCROLL_DURATION:
-                # анимация завершена
                 self.bg_y = self.bg_anim_target_y
                 self.bg_anim_active = False
                 self.bg_anim_progress = 0
         else:
-            # проверяем триггер запуска анимации
             if self.tower.size >= TOWER_BLOCKS_PER_STEP:
-                # 1) МОМЕНТАЛЬНО обрезаем башню
                 self.tower.size = BASE_ONSCREEN_BLOCKS
                 self.tower.onscreen = self.tower.size
                 self.tower.height = self.tower.size * BLOCK_HEIGHT
@@ -189,20 +178,16 @@ class Game:
                 self.tower.xlist = self.tower.xlist[-self.tower.size:]
                 self.tower.sprite_list = self.tower.sprite_list[-self.tower.size:]
                 self.tower.golden_list = self.tower.golden_list[-self.tower.size:]
-                
-                # 2) запускаем плавную анимацию ТОЛЬКО фона
+
                 self.bg_anim_active = True
                 self.bg_anim_progress = 0
                 self.bg_anim_target_y = self.bg_y + BG_SCROLL_STEP
-                
-                # ограничиваем нижний край
+
                 min_bg_y = SCREEN_HEIGHT - self.bg_big.get_height()
                 if self.bg_anim_target_y < min_bg_y:
                     self.bg_anim_target_y = min_bg_y
 
         self.check_game_over()
-
-    # ---------- Конец игры ----------
 
     def check_game_over(self):
         width = self.tower.get_width()
@@ -210,13 +195,15 @@ class Game:
         if width < -140:
             self.tower.collapse("l")
             if not self.game_over_reason:
-                self.sounds['over'].play()
+                if not self.sound_muted:
+                    self.sounds['over'].play()
                 self.game_over_reason = "collapse"
                 self.end_game()
         elif width > 140:
             self.tower.collapse("r")
             if not self.game_over_reason:
-                self.sounds['over'].play()
+                if not self.sound_muted:
+                    self.sounds['over'].play()
                 self.game_over_reason = "collapse"
                 self.end_game()
 
@@ -234,11 +221,10 @@ class Game:
         self.misses = 0
         self.score = 0
 
-        # сбрасываем фон, анимацию и СКОРОСТЬ
         self.bg_y = SCREEN_HEIGHT - self.bg_big.get_height()
         self.bg_anim_active = False
         self.bg_anim_progress = 0
-        self.force = INITIAL_FORCE  # ← сбрасываем скорость до начальной
+        self.force = INITIAL_FORCE
 
         self.game_over = False
         self.game_over_reason = None

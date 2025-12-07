@@ -10,12 +10,12 @@ class Shop:
         self.save_manager = save_manager
         self.asset_loader = asset_loader
 
-        self.font_title = pygame.font.Font("freesansbold.ttf", 48)
-        self.font_coins = pygame.font.Font("freesansbold.ttf", 24)
+        self.font_title = pygame.font.Font("freesansbold.ttf", 40)
+        self.font_coins = pygame.font.Font("freesansbold.ttf", 22)
 
-        # Кнопка "Назад" с тем же стилем Button (голубая)
+        # Кнопка "Назад" ближе к нижнему краю
         self.back_button = Button(
-            20, 538, 180, 50, "Назад",
+            20, SCREEN_HEIGHT - 80, 180, 50, "Назад",
             pygame.font.Font("freesansbold.ttf", 28)
         )
 
@@ -23,13 +23,23 @@ class Shop:
         self.create_tower_cards()
 
     def create_tower_cards(self):
-        """Создание карточек башен."""
+        """Создание карточек башен: 2 в ширину, 4 в высоту."""
         self.tower_cards = []
 
+        cols = 2           # 2 столбца
+        card_w = 180
+        card_h = 180
+        h_gap = 30         # горизонтальный промежуток
+        v_gap = 20         # вертикальный промежуток
+        start_x = 60       # левый отступ
+        start_y = 110      # верхний отступ под заголовок
+
         for i in range(1, 9):
-            # 4 карточки в ряд, 2 ряда
-            x = 60 + ((i - 1) % 4) * 180
-            y = 110 + ((i - 1) // 4) * 220  # чуть меньше шаг по высоте
+            col = (i - 1) % cols      # 0 или 1
+            row = (i - 1) // cols     # 0..3
+
+            x = start_x + col * (card_w + h_gap)
+            y = start_y + row * (card_h + v_gap)
 
             is_unlocked = self.save_manager.is_tower_unlocked(i)
             is_selected = self.save_manager.get_selected_tower() == i
@@ -49,17 +59,18 @@ class Shop:
 
     def draw(self, background):
         """Отрисовка магазина."""
-        self.screen.fill((210, 230, 245))
+        # фон под магазин — используем background из main.py
+        self.screen.blit(background, (0, 0))
 
         # Заголовок
         title = self.font_title.render("Магазин башен", True, BLACK)
-        title_rect = title.get_rect(center=(400, 50))
+        title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, 70))
         self.screen.blit(title, title_rect)
 
         # Монеты: иконка + число
         coins = self.save_manager.get_coins()
         coin_color = (255, 215, 0)
-        coin_pos = (SCREEN_WIDTH - 150, 32)
+        coin_pos = (SCREEN_WIDTH - 90, 70)
         pygame.draw.circle(self.screen, coin_color, coin_pos, 10)
         pygame.draw.circle(self.screen, (180, 140, 0), coin_pos, 10, 2)
 

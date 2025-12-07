@@ -11,13 +11,13 @@ class Block(pygame.sprite.Sprite):
         self.block_number = block_number
         self.game_force = INITIAL_FORCE
 
-
         # выбор спрайта
         if block_number == 0:
             self.image = tower_sprites['bot']
             self.sprite_type = 'bot'
             self.sprite_index = 0
         else:
+            # Циклически используем 4 спрайта: 0, 1, 2, 3, 0, 1, 2, 3...
             self.sprite_index = (block_number - 1) % 4
             self.image = tower_sprites['mid'][self.sprite_index]
             self.sprite_type = 'mid'
@@ -44,6 +44,7 @@ class Block(pygame.sprite.Sprite):
             self.sprite_type = 'bot'
             self.sprite_index = 0
         else:
+            # Циклически все 4 варианта mid
             self.sprite_index = (block_number - 1) % 4
             self.image = self.tower_sprites['mid'][self.sprite_index]
             self.sprite_type = 'mid'
@@ -69,24 +70,23 @@ class Block(pygame.sprite.Sprite):
         if self.state == "ready":
             self.state = "dropped"
             self.xlast = self.x
-
-        if self.collided(tower):
-            self.state = "landed"
-
-        if tower.size == 0:
-            target_y = SCREEN_HEIGHT - 424
-        else:
-            target_y = tower.y - BLOCK_HEIGHT
-
-        if self.y >= target_y:
-            if tower.size == 0 or self.collided(tower):
-                self.state = "landed"
-            else:
-                self.state = "miss"
+            self.speed = 0
 
         if self.state == "dropped":
             self.speed += GRAVITY
             self.y += self.speed
+
+            if tower.size == 0:
+                target_y = SCREEN_HEIGHT - 424
+            else:
+                target_y = tower.y - BLOCK_HEIGHT
+
+            if self.y >= target_y:
+                if tower.size == 0 or self.collided(tower):
+                    self.state = "landed"
+                else:
+                    if self.y >= SCREEN_HEIGHT + 100:
+                        self.state = "miss"
 
     def get_state(self):
         return self.state

@@ -14,14 +14,11 @@ class AssetLoader:
     # ---------- ФОНЫ ----------
 
     def load_backgrounds(self):
-        """Загрузка 5 фоновых картинок 540x960, идущих последовательно по вертикали."""
+        """Загрузка 2 фоновых картинок для меню/магазина."""
         backgrounds = []
         names = [
-            "bg_main.png",
-            "bg_sky.png",
-            "bg_space.png",
-            "bg_total_space.png",
-            "bg_total_space_2.png",
+            "bg_shop_2.png",  # светлый фон первым
+            "bg_shop_1.png",  # тёмный фон вторым
         ]
         for name in names:
             img = pygame.image.load(f"{ASSETS_PATH}bg/{name}").convert()
@@ -49,7 +46,6 @@ class AssetLoader:
             # центр 48x48 внутри исходного 96x48
             src_rect = pygame.Rect(24, 0, 48, 48)
             cropped = img.subsurface(src_rect).copy()
-            # увеличиваем и ширину, и высоту на 15 пикселей
             new_w = 48 + 15  # 63
             new_h = 48 + 15  # 63
             return pygame.transform.smoothscale(cropped, (new_w, new_h))
@@ -59,8 +55,9 @@ class AssetLoader:
         ).convert_alpha()
         bot = crop_and_scale(bot_raw)
 
+        # Загружаем ВСЕ 4 варианта mid спрайтов: 0, 1, 2, 3
         mid_frames = []
-        for i in range(4):
+        for i in range(4):  # 0, 1, 2, 3
             img_raw = pygame.image.load(
                 base_path + f"tower_{tower_id}_mid_{i}.png"
             ).convert_alpha()
@@ -69,6 +66,6 @@ class AssetLoader:
 
         sprites = {
             'bot': bot,
-            'mid': mid_frames,
+            'mid': mid_frames,  # список из 4 спрайтов
         }
         return sprites
