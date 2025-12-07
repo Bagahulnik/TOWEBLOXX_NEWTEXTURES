@@ -5,6 +5,7 @@ from pygame import mixer
 from src.block import Block
 from src.tower import Tower
 from src.constants import *
+from src.balloon_guy import BalloonGuy
 
 
 class Game:
@@ -20,7 +21,7 @@ class Game:
         # фоны
         self.bg_big = pygame.image.load(f"{ASSETS_PATH}bg/bg_group.png").convert()
         self.bg_y = SCREEN_HEIGHT - self.bg_big.get_height()
-        
+
         # фон для конечного экрана
         self.bg_end = pygame.image.load(f"{ASSETS_PATH}bg/bg_end.png").convert()
 
@@ -32,8 +33,13 @@ class Game:
         self.current_tower_id = save_manager.get_selected_tower()
         self.tower_sprites = asset_loader.load_tower_sprites(self.current_tower_id)
 
+        # башня и блок
         self.block = Block(self.tower_sprites, block_number=0)
         self.tower = Tower(self.tower_sprites)
+
+        # летающие человечки
+        self.balloon_guys = pygame.sprite.Group()
+        self._create_balloon_guys()
 
         self.score = 0
         self.misses = 0
@@ -64,14 +70,58 @@ class Game:
         # подсказка в начале игры
         self.show_start_hint = True
 
+        # человечки начинают лететь только после первого скролла фона
+        self.people_enabled = False
+
+    def _create_balloon_guys(self):
+        xs = [80, 180, 300, 420]
+        speed_y = -1.2
+
+        # порядок вылета: 0, 2, 1, 3
+        order = [0, 2, 1, 3]
+
+        for n, idx in enumerate(order):
+            delay_frames = n * 2 * FPS  # 0, 2, 4, 6 секунд
+            guy = BalloonGuy(
+                person_id=idx + 1,
+                start_x=xs[idx],
+                speed_y=speed_y,
+                start_delay_frames=delay_frames,
+            )
+            self.balloon_guys.add(guy)
+
     def show_score(self):
         score_text = self.score_font.render(f"Score: {self.score}", True, BLACK)
-        self.screen.blit(score_text, (10, 10))
-
         misses_text = self.miss_font.render(
             f"Промахи: {self.misses}/{MAX_MISSES}", True, BLACK
         )
-        self.screen.blit(misses_text, (10, 50))
+
+        # размеры блока по тексту
+        padding_x = 10
+        padding_y = 10
+
+        w = max(score_text.get_width(), misses_text.get_width()) + padding_x * 2
+        h = score_text.get_height() + misses_text.get_height() + padding_y * 3
+
+        panel_rect = pygame.Rect(8, 8, w, h)
+
+        base_color = (180, 200, 230)
+        border_color = (20, 20, 20)
+
+        # фон и обводка, как у кнопок
+        pygame.draw.rect(self.screen, base_color, panel_rect, border_radius=10)
+        pygame.draw.rect(self.screen, border_color, panel_rect, 2, border_radius=10)
+
+        # текст внутри
+        x_center = panel_rect.centerx
+        y = panel_rect.top + padding_y + score_text.get_height() // 2
+
+        score_rect = score_text.get_rect(center=(x_center, y))
+        self.screen.blit(score_text, score_rect)
+
+        y += score_text.get_height() + padding_y
+        misses_rect = misses_text.get_rect(center=(x_center, y))
+        self.screen.blit(misses_text, misses_rect)
 
     def draw_background(self):
         self.screen.blit(self.bg_big, (0, self.bg_y))
@@ -79,6 +129,10 @@ class Game:
     def draw(self):
         self.draw_background()
         self.screen.blit(self.crane_image, (0, 0))
+
+        # людишки (когда включены)
+        if self.people_enabled:
+            self.balloon_guys.draw(self.screen)
 
         rope_end_x = ROPE_ORIGIN_X + ROPE_LENGTH * math.sin(self.block.angle)
         rope_end_y = ROPE_ORIGIN_Y + ROPE_LENGTH * math.cos(self.block.angle)
@@ -105,7 +159,6 @@ class Game:
             self.draw_start_hint()
 
     def draw_start_hint(self):
-        """Полупрозрачная подсказка в начале игры."""
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 120))
         self.screen.blit(overlay, (0, 0))
@@ -220,6 +273,13 @@ class Game:
                 if self.bg_anim_target_y < min_bg_y:
                     self.bg_anim_target_y = min_bg_y
 
+                # как только первый раз начали скроллить фон — запускаем людей
+                if not self.people_enabled:
+                    self.people_enabled = True
+
+        if self.people_enabled:
+            self.balloon_guys.update()
+
         self.check_game_over()
 
     def check_game_over(self):
@@ -243,7 +303,6 @@ class Game:
     def end_game(self):
         self.game_over = True
         self.save_manager.update_high_score(self.score)
-        # чтобы стартовая подсказка не рисовалась поверх экрана конца
         self.show_start_hint = False
 
     def reset(self):
@@ -265,8 +324,8 @@ class Game:
         self.game_over_reason = None
         self.coins_earned = 0
 
-        # при новом запуске показываем подсказку снова
         self.show_start_hint = True
+        self.people_enabled = False
 
     def show_game_over_screen(self):
         title = self.over_font.render("GAME OVER", True, BLACK)
@@ -304,7 +363,6 @@ class Game:
 
             cx = SCREEN_WIDTH // 2
 
-            # панель в стиле кнопок меню
             panel_width = SCREEN_WIDTH - 80
             panel_height = 260
             base_color = (180, 200, 230)
@@ -317,17 +375,14 @@ class Game:
                 panel_height
             )
 
-            # тень
             shadow_rect = panel_rect.copy()
             shadow_rect.x += 4
             shadow_rect.y += 4
             pygame.draw.rect(self.screen, (0, 0, 0, 80), shadow_rect, border_radius=16)
 
-            # сама «кнопка»
             pygame.draw.rect(self.screen, base_color, panel_rect, border_radius=16)
             pygame.draw.rect(self.screen, border_color, panel_rect, 3, border_radius=16)
 
-            # текст внутри панели
             y = panel_rect.top + 55
             title_rect = title.get_rect(center=(cx, y))
             self.screen.blit(title, title_rect)
