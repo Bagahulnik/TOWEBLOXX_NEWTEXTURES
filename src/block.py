@@ -48,18 +48,20 @@ class Block(pygame.sprite.Sprite):
         self.rotimg = self.image
 
     def swing(self):
-        # конец верёвки = точка входа в крюк
         hook_x = ROPE_ORIGIN_X + ROPE_LENGTH * sin(self.angle)
         hook_y = ROPE_ORIGIN_Y + ROPE_LENGTH * cos(self.angle)
 
         if self.state == "ready":
-            # блок ниже крюка на BLOCK_BELOW_HOOK пикселей
+            attach_y = hook_y + HOOK_BOTTOM_OFFSET
+            
+            # (self.x + HOOK_ATTACH_OFFSET_X, self.y + HOOK_ATTACH_OFFSET_Y) = (hook_x, attach_y)
             self.x = hook_x - HOOK_ATTACH_OFFSET_X
-            self.y = hook_y - HOOK_ATTACH_OFFSET_Y + BLOCK_BELOW_HOOK
+            self.y = attach_y - HOOK_ATTACH_OFFSET_Y
 
         self.angle += self.speed
         self.acceleration = sin(self.angle) * self.get_force()
         self.speed += self.acceleration
+
 
     def get_force(self):
         return INITIAL_FORCE
@@ -149,26 +151,14 @@ class Block(pygame.sprite.Sprite):
 
         hook_x = ROPE_ORIGIN_X + ROPE_LENGTH * sin(self.angle)
         hook_y = ROPE_ORIGIN_Y + ROPE_LENGTH * cos(self.angle)
+        attach_y = hook_y + HOOK_BOTTOM_OFFSET
 
         self.x = hook_x - HOOK_ATTACH_OFFSET_X
-        self.y = hook_y - HOOK_ATTACH_OFFSET_Y + BLOCK_BELOW_HOOK
+        self.y = attach_y - HOOK_ATTACH_OFFSET_Y
 
         self.set_sprite_for_block_number(tower.size)
+
 
     def display(self, screen, tower):
         if not tower.is_scrolling():
             screen.blit(self.rotimg, (self.x, self.y))
-            if self.state == "ready":
-                self.draw_rope(screen)
-
-    def draw_rope(self, screen):
-        bx = self.x + HOOK_ATTACH_OFFSET_X
-        by = self.y + HOOK_ATTACH_OFFSET_Y
-
-        for offset in [0, 1, 2, -1, -2]:
-            pygame.draw.aaline(
-                screen,
-                BLACK,
-                (self.origin[0] + offset, self.origin[1]),
-                (bx + offset, by),
-            )

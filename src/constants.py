@@ -7,8 +7,6 @@ FPS = 60
 BLOCK_WIDTH = 130
 BLOCK_HEIGHT = 90
 
-
-
 # Точка крепления крюка (из спрайта крана)
 ROPE_LENGTH = 305
 ROPE_EXTRA_TO_BLOCK = 20
@@ -16,10 +14,9 @@ ROPE_ORIGIN_X = 252
 ROPE_ORIGIN_Y = 118
 CRANE_ANCHOR_X = ROPE_ORIGIN_X
 CRANE_ANCHOR_Y = ROPE_ORIGIN_Y
-BLOCK_BELOW_HOOK = 14  # подбери число: 10–20 пикселей
-HOOK_ATTACH_OFFSET_X = 48   # внутри блока
-HOOK_ATTACH_OFFSET_Y = 24
-
+HOOK_BOTTOM_OFFSET = 10# расстояние от якоря до низа крюка
+HOOK_ATTACH_OFFSET_X = 50   # центр блока по ширине 
+HOOK_ATTACH_OFFSET_Y = 30    # верхняя грань блока
 
 
 # Физика
@@ -45,7 +42,7 @@ RED = (255, 0, 0)
 # Пути к ресурсам
 ASSETS_PATH = "assets/"
 TOWERS_PATH = ASSETS_PATH + "towers/"
-DATA_PATH = "data/" 
+DATA_PATH = "data/"
 
 # Цены на башни
 TOWER_PRICES = {

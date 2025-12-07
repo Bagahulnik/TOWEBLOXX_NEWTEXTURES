@@ -13,10 +13,11 @@ class Game:
         self.asset_loader = asset_loader
 
         # Кран и верёвка
+        # Кран и верёвка+крюк
+        # Кран и верёвка+крюк
         self.crane_image = pygame.image.load(f"{ASSETS_PATH}crane.png").convert_alpha()
-        self.rope_image = pygame.image.load(f"{ASSETS_PATH}crane_rope.png").convert_alpha()
-        self.hook_image = pygame.image.load(f"{ASSETS_PATH}hook.png").convert_alpha()
-        self.rope_rect = self.rope_image.get_rect()
+        self.rope_hook_image = pygame.image.load(f"{ASSETS_PATH}rope_with_hook.png").convert_alpha()
+     
 
         # Ресурсы
         self.backgrounds = asset_loader.load_backgrounds()
@@ -84,34 +85,32 @@ class Game:
         self.draw_background()
         self.screen.blit(self.crane_image, (0, 0))
 
-        # ----- верёвка как спрайт поверх старой математики -----
-        origin = (CRANE_ANCHOR_X, CRANE_ANCHOR_Y)
+        # Вычисляем конец верёвки (физически)
+        rope_end_x = ROPE_ORIGIN_X + ROPE_LENGTH * math.sin(self.block.angle)
+        rope_end_y = ROPE_ORIGIN_Y + ROPE_LENGTH * math.cos(self.block.angle)
 
-       # верёвка-спрайт
-        angle_deg = -self.block.angle
-        rot_rope = pygame.transform.rotate(self.rope_image, angle_deg)
-        rope_rect = rot_rope.get_rect()
-        rope_rect.midtop = (ROPE_ORIGIN_X, ROPE_ORIGIN_Y)
-        self.screen.blit(rot_rope, rope_rect)
+        # Поворачиваем спрайт верёвки
+        angle_deg = math.degrees(self.block.angle)
+        rot_rope_hook = pygame.transform.rotate(self.rope_hook_image, angle_deg)
+        rope_hook_rect = rot_rope_hook.get_rect()
 
-        # конец верёвки (крюк)
-        hook_x = ROPE_ORIGIN_X + ROPE_LENGTH * math.sin(self.block.angle)
-        hook_y = ROPE_ORIGIN_Y + ROPE_LENGTH * math.cos(self.block.angle)
+        # Позиционируем так, чтобы центр прямоугольника совпадал с серединой физической верёвки
+        mid_x = (ROPE_ORIGIN_X + rope_end_x) / 2
+        mid_y = (ROPE_ORIGIN_Y + rope_end_y) / 2
+        rope_hook_rect.center = (mid_x, mid_y)
+        
+        self.screen.blit(rot_rope_hook, rope_hook_rect)
 
-        hook_rect = self.hook_image.get_rect()
-        ANCHOR_IN_HOOK_X = hook_rect.width // 2   # центр по X
-        ANCHOR_IN_HOOK_Y = 10  # подбери по Y под свой спрайт
-        hook_rect.topleft = (
-            hook_x - ANCHOR_IN_HOOK_X,
-            hook_y - ANCHOR_IN_HOOK_Y,
-        )
-        self.screen.blit(self.hook_image, hook_rect)
+        # Башня и блок
         self.show_score()
         self.tower.wobble()
         if self.tower.get_display():
             self.tower.display(self.screen)
         self.block.display(self.screen, self.tower)
-        self.screen.blit(self.hook_image, hook_rect)
+
+
+
+
 
     # -------- События --------
 
