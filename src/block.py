@@ -7,10 +7,10 @@ class Block(pygame.sprite.Sprite):
     def __init__(self, tower_sprites, origin=(ROPE_ORIGIN_X, ROPE_ORIGIN_Y), block_number=0):
         pygame.sprite.Sprite.__init__(self)
         self.tower_sprites = tower_sprites
-        self.origin = (ROPE_ORIGIN_X, ROPE_ORIGIN_Y)
+        self.origin = origin
         self.block_number = block_number
 
-        # спрайт
+        # выбор спрайта
         if block_number == 0:
             self.image = tower_sprites['bot']
             self.sprite_type = 'bot'
@@ -22,7 +22,7 @@ class Block(pygame.sprite.Sprite):
 
         self.rotimg = self.image
 
-        # старт
+        # стартовые координаты блока
         self.x = ROPE_ORIGIN_X - BLOCK_WIDTH // 2
         self.y = ROPE_ORIGIN_Y + ROPE_LENGTH
         self.xlast = 0
@@ -53,15 +53,12 @@ class Block(pygame.sprite.Sprite):
 
         if self.state == "ready":
             attach_y = hook_y + HOOK_BOTTOM_OFFSET
-            
-            # (self.x + HOOK_ATTACH_OFFSET_X, self.y + HOOK_ATTACH_OFFSET_Y) = (hook_x, attach_y)
             self.x = hook_x - HOOK_ATTACH_OFFSET_X
             self.y = attach_y - HOOK_ATTACH_OFFSET_Y
 
         self.angle += self.speed
         self.acceleration = sin(self.angle) * self.get_force()
         self.speed += self.acceleration
-
 
     def get_force(self):
         return INITIAL_FORCE
@@ -74,11 +71,16 @@ class Block(pygame.sprite.Sprite):
         if self.collided(tower):
             self.state = "landed"
 
-        if tower.size == 0 and self.y >= SCREEN_HEIGHT - 424:
-            self.state = "landed"
+        if tower.size == 0:
+            target_y = SCREEN_HEIGHT - 424
+        else:
+            target_y = tower.y - BLOCK_HEIGHT
 
-        if tower.size >= 1 and self.y >= SCREEN_HEIGHT - 424 and not self.collided(tower):
-            self.state = "miss"
+        if self.y >= target_y:
+            if tower.size == 0 or self.collided(tower):
+                self.state = "landed"
+            else:
+                self.state = "miss"
 
         if self.state == "dropped":
             self.speed += GRAVITY
@@ -91,9 +93,13 @@ class Block(pygame.sprite.Sprite):
         if tower.size == 0:
             return False
 
-        if (self.xlast < tower.xlist[-1] + 90) and \
-           (self.xlast > tower.xlist[-1] - 90) and \
-           (tower.y - self.y <= 55):
+        half = BLOCK_WIDTH * 0.5
+        x_ok = (self.xlast < tower.xlist[-1] + half) and \
+               (self.xlast > tower.xlist[-1] - half)
+
+        y_ok = (tower.y - self.y <= BLOCK_HEIGHT + 10)
+
+        if x_ok and y_ok:
             if (self.xlast < tower.xlist[-1] + 5) and \
                (self.xlast > tower.xlist[-1] - 5):
                 tower.golden = True
@@ -115,10 +121,11 @@ class Block(pygame.sprite.Sprite):
             return
         if tower.size == 2:
             prev_x = tower.xbase
-            threshold = BLOCK_WIDTH * 0.25
+            threshold = BLOCK_WIDTH * 0.5
         else:
             prev_x = tower.xlist[-2]
-            threshold = BLOCK_WIDTH * COLLAPSE_THRESHOLD
+            threshold = BLOCK_WIDTH * 0.5
+
         offset = abs(self.xlast - prev_x)
         if offset >= threshold:
             self.state = "over"
@@ -158,7 +165,6 @@ class Block(pygame.sprite.Sprite):
 
         self.set_sprite_for_block_number(tower.size)
 
-
-    def display(self, screen, tower):
+    def display(self, screen, tower, scroll_y=0):
         if not tower.is_scrolling():
-            screen.blit(self.rotimg, (self.x, self.y))
+            screen.blit(self.rotimg, (self.x, self.y + scroll_y))

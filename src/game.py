@@ -1,6 +1,7 @@
-import pygame
 import math
+import pygame
 from pygame import mixer
+
 from src.block import Block
 from src.tower import Tower
 from src.constants import *
@@ -11,35 +12,28 @@ class Game:
         self.screen = screen
         self.save_manager = save_manager
         self.asset_loader = asset_loader
+        self.bg_triggered_for_level = -1
 
-        # Кран и верёвка
-        # Кран и верёвка+крюк
-        # Кран и верёвка+крюк
         self.crane_image = pygame.image.load(f"{ASSETS_PATH}crane.png").convert_alpha()
         self.rope_hook_image = pygame.image.load(f"{ASSETS_PATH}rope_with_hook.png").convert_alpha()
-     
 
-        # Ресурсы
-        self.backgrounds = asset_loader.load_backgrounds()
+        # один высокий фон
+        self.bg_big = pygame.image.load(f"{ASSETS_PATH}bg/bg_group.png").convert()
+        self.bg_y = SCREEN_HEIGHT - self.bg_big.get_height()
+
         self.sounds = asset_loader.load_sounds()
 
-        # Текущая башня
         self.current_tower_id = save_manager.get_selected_tower()
         self.tower_sprites = asset_loader.load_tower_sprites(self.current_tower_id)
 
-        # Игровые объекты
         self.block = Block(self.tower_sprites, block_number=0)
         self.tower = Tower(self.tower_sprites)
 
-        # Состояние игры
         self.score = 0
         self.misses = 0
-        self.screen_y = 0
-        self.screen_x = 0
         self.force = INITIAL_FORCE
         self.coins_earned = 0
 
-        # Шрифты
         self.score_font = pygame.font.Font("freesansbold.ttf", 32)
         self.miss_font = pygame.font.Font("freesansbold.ttf", 24)
         self.over_font = pygame.font.Font("freesansbold.ttf", 64)
@@ -47,18 +41,16 @@ class Game:
         self.reason_font = pygame.font.Font("freesansbold.ttf", 24)
         self.coins_font = pygame.font.Font("freesansbold.ttf", 24)
 
-        # Музыка
         mixer.music.load(f"{ASSETS_PATH}bgm.wav")
         mixer.music.play(-1)
 
-        # События
         self.BLINK_EVENT = pygame.USEREVENT + 1
         pygame.time.set_timer(self.BLINK_EVENT, 800)
 
         self.game_over = False
         self.game_over_reason = None
 
-    # -------- Рисование --------
+    # ---------- UI ----------
 
     def show_score(self):
         score_text = self.score_font.render(f"Score: {self.score}", True, BLACK)
@@ -69,50 +61,38 @@ class Game:
         )
         self.screen.blit(misses_text, (10, 50))
 
+    # ---------- Фон ----------
+
     def draw_background(self):
-        total_height = len(self.backgrounds) * SCREEN_HEIGHT
-        offset = self.screen_y % total_height
+        self.screen.blit(self.bg_big, (0, self.bg_y))
 
-        start_index = int(offset // SCREEN_HEIGHT)
-        y_in_texture = offset % SCREEN_HEIGHT
-
-        for i in range(3):
-            idx = (start_index + i) % len(self.backgrounds)
-            y = -y_in_texture + i * SCREEN_HEIGHT
-            self.screen.blit(self.backgrounds[idx], (0, y))
+    # ---------- Рисование ----------
 
     def draw(self):
         self.draw_background()
         self.screen.blit(self.crane_image, (0, 0))
 
-        # Вычисляем конец верёвки (физически)
         rope_end_x = ROPE_ORIGIN_X + ROPE_LENGTH * math.sin(self.block.angle)
         rope_end_y = ROPE_ORIGIN_Y + ROPE_LENGTH * math.cos(self.block.angle)
 
-        # Поворачиваем спрайт верёвки
         angle_deg = math.degrees(self.block.angle)
         rot_rope_hook = pygame.transform.rotate(self.rope_hook_image, angle_deg)
         rope_hook_rect = rot_rope_hook.get_rect()
 
-        # Позиционируем так, чтобы центр прямоугольника совпадал с серединой физической верёвки
         mid_x = (ROPE_ORIGIN_X + rope_end_x) / 2
         mid_y = (ROPE_ORIGIN_Y + rope_end_y) / 2
         rope_hook_rect.center = (mid_x, mid_y)
-        
+
         self.screen.blit(rot_rope_hook, rope_hook_rect)
 
-        # Башня и блок
         self.show_score()
         self.tower.wobble()
+
         if self.tower.get_display():
-            self.tower.display(self.screen)
-        self.block.display(self.screen, self.tower)
+            self.tower.display(self.screen, scroll_y=0)
+        self.block.display(self.screen, self.tower, scroll_y=0)
 
-
-
-
-
-    # -------- События --------
+    # ---------- События ----------
 
     def handle_game_events(self, event):
         if event.type == pygame.KEYDOWN:
@@ -120,15 +100,17 @@ class Game:
                 if self.block.get_state() == "ready":
                     self.block.drop(self.tower)
 
-    # -------- Логика --------
+    # ---------- Логика ----------
 
     def update(self):
         state = self.block.get_state()
 
         if state == "ready":
             self.block.swing()
+
         elif state == "dropped":
             self.block.drop(self.tower)
+
         elif state == "landed":
             if self.block.to_build(self.tower):
                 self.tower.build(self.block)
@@ -151,8 +133,12 @@ class Game:
             surf = self.tower.unbuild(self.block)
             self.screen.blit(surf, (self.tower.x + self.tower.change, self.tower.y + 64))
             self.block.to_fall(self.tower)
-            self.sounds['fall'].play()
-            self.sounds['over'].play()
+
+            if not self.game_over_reason:
+                self.sounds['fall'].play()
+                self.sounds['over'].play()
+                self.game_over_reason = "collapse"
+                self.end_game()
 
         elif state == "scroll" and not self.tower.is_scrolling():
             self.block.respawn(self.tower)
@@ -169,39 +155,46 @@ class Game:
             else:
                 self.block.respawn(self.tower)
 
-        if self.tower.height >= BLOCK_HEIGHT * 5 and self.tower.size >= 5:
-            self.tower.scroll()
-            self.screen_y += 5
+        # ---------- шаг большого фона по высоте башни ----------
+        # когда башня достигает N блоков – сдвигаем фон и «обрезаем» низ башни
+        if self.tower.size >= TOWER_BLOCKS_PER_STEP:
+            # сдвигаем фон вниз на 2 блока
+            self.bg_y += BG_SCROLL_STEP
+            min_bg_y = SCREEN_HEIGHT - self.bg_big.get_height()
+            if self.bg_y < min_bg_y:
+                self.bg_y = min_bg_y
+
+            # уменьшаем логическую высоту башни, как будто нижние блоки ушли за экран
+            self.tower.size = BASE_ONSCREEN_BLOCKS
+            self.tower.onscreen = self.tower.size
+            self.tower.height = self.tower.size * BLOCK_HEIGHT
+            base_y = SCREEN_HEIGHT - BLOCK_HEIGHT
+            self.tower.y = base_y - (self.tower.height - BLOCK_HEIGHT)
+
+            # списки X и спрайтов тоже нужно обрезать
+            self.tower.xlist = self.tower.xlist[-self.tower.size:]
+            self.tower.sprite_list = self.tower.sprite_list[-self.tower.size:]
+            self.tower.golden_list = self.tower.golden_list[-self.tower.size:]
 
         self.check_game_over()
+
+    # ---------- Конец игры ----------
 
     def check_game_over(self):
         width = self.tower.get_width()
 
         if width < -140:
             self.tower.collapse("l")
-            self.sounds['over'].play()
-            self.game_over_reason = "collapse"
+            if not self.game_over_reason:
+                self.sounds['over'].play()
+                self.game_over_reason = "collapse"
+                self.end_game()
         elif width > 140:
             self.tower.collapse("r")
-            self.sounds['over'].play()
-            self.game_over_reason = "collapse"
-
-        if self.tower.y > SCREEN_HEIGHT:
-            self.block.x = 2000
-            self.tower.size -= 1
             if not self.game_over_reason:
+                self.sounds['over'].play()
                 self.game_over_reason = "collapse"
-            self.end_game()
-
-        elif self.block.get_state() == "over" and self.block.y > SCREEN_HEIGHT:
-            self.tower.y = 2000
-            self.tower.size -= 1
-            if not self.game_over_reason:
-                self.game_over_reason = "collapse"
-            self.end_game()
-
-    # -------- Конец игры --------
+                self.end_game()
 
     def end_game(self):
         self.game_over = True
@@ -214,9 +207,11 @@ class Game:
         self.block = Block(self.tower_sprites, block_number=0)
         self.tower = Tower(self.tower_sprites)
 
-        self.score = 0
         self.misses = 0
-        self.screen_y = 0
+        self.score = 0
+
+        self.bg_y = SCREEN_HEIGHT - self.bg_big.get_height()
+
         self.force = INITIAL_FORCE
         self.game_over = False
         self.game_over_reason = None
@@ -240,7 +235,7 @@ class Game:
 
         blank_rect = button_text.get_rect()
         blank = pygame.Surface((blank_rect.size), pygame.SRCALPHA)
-        blank.convert_alpha()
+        blank = blank.convert_alpha()
 
         instructions = [button_text, blank]
         index = 1
@@ -256,7 +251,7 @@ class Game:
                 if event.type == self.BLINK_EVENT:
                     index = 1 if index == 0 else 0
 
-            self.screen.blit(self.backgrounds[0], (0, 0))
+            self.screen.blit(self.bg_big, (0, self.bg_y))
 
             cx = SCREEN_WIDTH // 2
 

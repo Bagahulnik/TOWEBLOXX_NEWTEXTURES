@@ -5,6 +5,7 @@ from src.constants import ASSETS_PATH, TOWERS_PATH
 class AssetLoader:
     def __init__(self):
         pass
+
     def load_icon(self):
         """Иконка окна игры."""
         icon = pygame.image.load(f"{ASSETS_PATH}icon.png").convert_alpha()
@@ -41,23 +42,33 @@ class AssetLoader:
     # ---------- СПРАЙТЫ БАШЕН ----------
 
     def load_tower_sprites(self, tower_id):
-        """Загружает спрайты одной башни по её id."""
+        """Загружает спрайты одной башни по её id и увеличивает центральный блок до 63x63."""
         base_path = f"{TOWERS_PATH}tower_{tower_id}/"
 
-        bot = pygame.image.load(
+        def crop_and_scale(img):
+            # центр 48x48 внутри исходного 96x48
+            src_rect = pygame.Rect(24, 0, 48, 48)
+            cropped = img.subsurface(src_rect).copy()
+            # увеличиваем и ширину, и высоту на 15 пикселей
+            new_w = 48 + 15  # 63
+            new_h = 48 + 15  # 63
+            return pygame.transform.smoothscale(cropped, (new_w, new_h))
+
+        bot_raw = pygame.image.load(
             base_path + f"tower_{tower_id}_bot.png"
         ).convert_alpha()
+        bot = crop_and_scale(bot_raw)
 
         mid_frames = []
         for i in range(4):
-            img = pygame.image.load(
+            img_raw = pygame.image.load(
                 base_path + f"tower_{tower_id}_mid_{i}.png"
             ).convert_alpha()
+            img = crop_and_scale(img_raw)
             mid_frames.append(img)
 
         sprites = {
             'bot': bot,
             'mid': mid_frames,
         }
-
         return sprites
