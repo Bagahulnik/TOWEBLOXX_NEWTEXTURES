@@ -10,12 +10,16 @@ class Shop:
         self.save_manager = save_manager
         self.asset_loader = asset_loader
 
-        self.font_title = pygame.font.Font("freesansbold.ttf", 40)
+        self.font_title = pygame.font.Font("freesansbold.ttf", 32)
         self.font_coins = pygame.font.Font("freesansbold.ttf", 22)
 
-        # Кнопка "Назад" ближе к нижнему краю
+        # Кнопка "Назад" по центру и чуть ниже карточек
+        btn_w, btn_h = 220, 55
         self.back_button = Button(
-            20, SCREEN_HEIGHT - 80, 180, 50, "Назад",
+            (SCREEN_WIDTH - btn_w) // 2,
+            SCREEN_HEIGHT - 57,          # было -80, опустили ниже
+            btn_w, btn_h,
+            "Назад",
             pygame.font.Font("freesansbold.ttf", 28)
         )
 
@@ -23,20 +27,22 @@ class Shop:
         self.create_tower_cards()
 
     def create_tower_cards(self):
-        """Создание карточек башен: 2 в ширину, 4 в высоту."""
+        """Создание карточек башен: 2 в ширину, 4 в высоту, по центру экрана."""
         self.tower_cards = []
 
-        cols = 2           # 2 столбца
+        cols = 2
         card_w = 180
         card_h = 180
-        h_gap = 30         # горизонтальный промежуток
-        v_gap = 20         # вертикальный промежуток
-        start_x = 60       # левый отступ
-        start_y = 110      # верхний отступ под заголовок
+        h_gap = 30
+        v_gap = 20
+
+        total_width = cols * card_w + (cols - 1) * h_gap
+        start_x = (SCREEN_WIDTH - total_width) // 2   # ЦЕНТР по горизонтали
+        start_y = 120                                 # чуть ниже заголовка
 
         for i in range(1, 9):
-            col = (i - 1) % cols      # 0 или 1
-            row = (i - 1) // cols     # 0..3
+            col = (i - 1) % cols
+            row = (i - 1) // cols
 
             x = start_x + col * (card_w + h_gap)
             y = start_y + row * (card_h + v_gap)
@@ -57,41 +63,69 @@ class Shop:
             )
             self.tower_cards.append(card)
 
+
     def draw(self, background):
         """Отрисовка магазина."""
-        # фон под магазин — используем background из main.py
         self.screen.blit(background, (0, 0))
 
-        # Заголовок
-        title = self.font_title.render("Магазин башен", True, BLACK)
-        title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, 70))
-        self.screen.blit(title, title_rect)
+        # ---------- Заголовок "Магазин башен" с плашкой ----------
+        title_text = "Магазин башен"
+        title_surf = self.font_title.render(title_text, True, BLACK)
+        title_rect = title_surf.get_rect(center=(SCREEN_WIDTH // 2, 70))
 
-        # Монеты: иконка + число
+        padding_x = 30
+        padding_y = 10
+        title_bg_rect = pygame.Rect(
+            title_rect.left - padding_x,
+            title_rect.top - padding_y,
+            title_rect.width + padding_x * 2,
+            title_rect.height + padding_y * 2,
+        )
+        base_color = (180, 200, 230)
+        border_color = (20, 20, 20)
+        pygame.draw.rect(self.screen, base_color, title_bg_rect, border_radius=12)
+        pygame.draw.rect(self.screen, border_color, title_bg_rect, 2, border_radius=12)
+        self.screen.blit(title_surf, title_rect)
+
+        # ---------- Монеты: общий серый фон + иконка + число ----------
+        coins = self.save_manager.get_coins()
+        coin_color = (255, 215, 0)
+        base_color = (180, 200, 230)
+        border_color = (20, 20, 20)
+
+        # позиция блока монет
+        coin_pos = (SCREEN_WIDTH - 90, 70)
+
+        # текст
+        coins_text = self.font_coins.render(str(coins), True, BLACK)
+        coins_rect = coins_text.get_rect(midleft=(coin_pos[0] + 18, coin_pos[1]))
+
+        # ---------- Монеты: только иконка + число, без фона ----------
         coins = self.save_manager.get_coins()
         coin_color = (255, 215, 0)
         coin_pos = (SCREEN_WIDTH - 90, 70)
+
+        # круг-иконка монеты
         pygame.draw.circle(self.screen, coin_color, coin_pos, 10)
         pygame.draw.circle(self.screen, (180, 140, 0), coin_pos, 10, 2)
 
+        # текст с количеством монет
         coins_text = self.font_coins.render(str(coins), True, BLACK)
         coins_rect = coins_text.get_rect(midleft=(coin_pos[0] + 18, coin_pos[1]))
         self.screen.blit(coins_text, coins_rect)
 
-        # Карточки
+        # ---------- Карточки ----------
         for card in self.tower_cards:
             card.draw(self.screen)
 
-        # Кнопка "Назад"
+        # ---------- Кнопка "Назад" ----------
         self.back_button.draw(self.screen)
 
     def handle_event(self, event):
         """Обработка событий магазина."""
-        # Назад
         if self.back_button.handle_event(event):
             return "back"
 
-        # Карточки
         for card in self.tower_cards:
             res = card.handle_event(event)
             if res == "button":

@@ -1,5 +1,12 @@
 import pygame
-from src.constants import ASSETS_PATH, TOWERS_PATH
+from src.constants import (
+    ASSETS_PATH,
+    TOWERS_PATH,
+    BLOCK_WIDTH,
+    BLOCK_HEIGHT,
+    UI_PATH,
+    SFX_PATH,
+)
 
 
 class AssetLoader:
@@ -8,7 +15,7 @@ class AssetLoader:
 
     def load_icon(self):
         """Иконка окна игры."""
-        icon = pygame.image.load(f"{ASSETS_PATH}icon.png").convert_alpha()
+        icon = pygame.image.load(f"{UI_PATH}icon.png").convert_alpha()
         return icon
 
     # ---------- ФОНЫ ----------
@@ -29,33 +36,41 @@ class AssetLoader:
 
     def load_sounds(self):
         sounds = {
-            'build': pygame.mixer.Sound(f"{ASSETS_PATH}sfx_build.wav"),
-            'gold': pygame.mixer.Sound(f"{ASSETS_PATH}sfx_gold.wav"),
-            'fall': pygame.mixer.Sound(f"{ASSETS_PATH}sfx_fall.wav"),
-            'over': pygame.mixer.Sound(f"{ASSETS_PATH}sfx_over.wav"),
+            "build": pygame.mixer.Sound(f"{SFX_PATH}sfx_build.wav"),
+            "gold": pygame.mixer.Sound(f"{SFX_PATH}sfx_gold.wav"),
+            "fall": pygame.mixer.Sound(f"{SFX_PATH}sfx_fall.wav"),
+            "over": pygame.mixer.Sound(f"{SFX_PATH}sfx_over.wav"),
         }
         return sounds
 
     # ---------- СПРАЙТЫ БАШЕН ----------
 
     def load_tower_sprites(self, tower_id):
-        """Загружает спрайты одной башни по её id и увеличивает центральный блок до 63x63."""
+        """
+        Загружает спрайты одной башни по её id.
+        Исходный спрайт 96x48, полезная текстура ~72x48 (по 12px слева/справа пустота),
+        вырезаем 72x48 и растягиваем в блок 63x63.
+        """
         base_path = f"{TOWERS_PATH}tower_{tower_id}/"
 
-        def crop_and_scale(img):
-            # центр 48x48 внутри исходного 96x48
-            src_rect = pygame.Rect(24, 0, 48, 48)
+        def crop_and_scale(img: pygame.Surface) -> pygame.Surface:
+            # полезная часть 72x48 в центре 96x48: от x = 12 до x = 84
+            src_rect = pygame.Rect(12, 0, 72, 48)
             cropped = img.subsurface(src_rect).copy()
-            new_w = 48 + 15  # 63
-            new_h = 48 + 15  # 63
-            return pygame.transform.smoothscale(cropped, (new_w, new_h))
 
+            # растягиваем в размер блока 72x72
+            scaled = pygame.transform.smoothscale(
+                cropped, (BLOCK_WIDTH, BLOCK_HEIGHT)
+            )
+            return scaled
+
+        # bot
         bot_raw = pygame.image.load(
             base_path + f"tower_{tower_id}_bot.png"
         ).convert_alpha()
         bot = crop_and_scale(bot_raw)
 
-        # Загружаем ВСЕ 4 варианта mid спрайтов: 0, 1, 2, 3
+        # mid 0..3
         mid_frames = []
         for i in range(4):  # 0, 1, 2, 3
             img_raw = pygame.image.load(
@@ -65,7 +80,7 @@ class AssetLoader:
             mid_frames.append(img)
 
         sprites = {
-            'bot': bot,
-            'mid': mid_frames,  # список из 4 спрайтов
+            "bot": bot,
+            "mid": mid_frames,
         }
         return sprites

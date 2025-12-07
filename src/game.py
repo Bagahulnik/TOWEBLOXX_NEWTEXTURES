@@ -14,12 +14,15 @@ class Game:
         self.asset_loader = asset_loader
         self.sound_muted = sound_muted
 
-        self.crane_image = pygame.image.load(f"{ASSETS_PATH}crane.png").convert_alpha()
-        self.rope_hook_image = pygame.image.load(f"{ASSETS_PATH}rope_with_hook.png").convert_alpha()
+        self.crane_image = pygame.image.load(f"{CRANE_PATH}crane.png").convert_alpha()
+        self.rope_hook_image = pygame.image.load(f"{CRANE_PATH}rope_with_hook.png").convert_alpha()
 
-        # один высокий фон
+        # фоны
         self.bg_big = pygame.image.load(f"{ASSETS_PATH}bg/bg_group.png").convert()
         self.bg_y = SCREEN_HEIGHT - self.bg_big.get_height()
+        
+        # фон для конечного экрана
+        self.bg_end = pygame.image.load(f"{ASSETS_PATH}bg/bg_end.png").convert()
 
         self.sounds = asset_loader.load_sounds()
         if self.sound_muted:
@@ -48,13 +51,18 @@ class Game:
         self.reason_font = pygame.font.Font("freesansbold.ttf", 24)
         self.coins_font = pygame.font.Font("freesansbold.ttf", 24)
 
-        # музыка – глобально в main.py
+        # шрифты для подсказок
+        self.hint_title_font = pygame.font.Font("freesansbold.ttf", 40)
+        self.hint_text_font = pygame.font.Font("freesansbold.ttf", 28)
 
         self.BLINK_EVENT = pygame.USEREVENT + 1
         pygame.time.set_timer(self.BLINK_EVENT, 800)
 
         self.game_over = False
         self.game_over_reason = None
+
+        # подсказка в начале игры
+        self.show_start_hint = True
 
     def show_score(self):
         score_text = self.score_font.render(f"Score: {self.score}", True, BLACK)
@@ -92,9 +100,34 @@ class Game:
             self.tower.display(self.screen, scroll_y=0)
         self.block.display(self.screen, self.tower, scroll_y=0)
 
+        # подсказка в начале игры
+        if self.show_start_hint:
+            self.draw_start_hint()
+
+    def draw_start_hint(self):
+        """Полупрозрачная подсказка в начале игры."""
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 120))
+        self.screen.blit(overlay, (0, 0))
+
+        title = self.hint_title_font.render("Подсказка", True, WHITE)
+        line1 = self.hint_text_font.render("Нажмите SPACE,", True, WHITE)
+        line2 = self.hint_text_font.render("чтобы поставить блок", True, WHITE)
+
+        cx = SCREEN_WIDTH // 2
+        title_rect = title.get_rect(center=(cx, 260))
+        line1_rect = line1.get_rect(center=(cx, 310))
+        line2_rect = line2.get_rect(center=(cx, 350))
+
+        self.screen.blit(title, title_rect)
+        self.screen.blit(line1, line1_rect)
+        self.screen.blit(line2, line2_rect)
+
     def handle_game_events(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
+                if self.show_start_hint:
+                    self.show_start_hint = False
                 if self.block.get_state() == "ready":
                     self.block.drop(self.tower)
 
@@ -210,6 +243,8 @@ class Game:
     def end_game(self):
         self.game_over = True
         self.save_manager.update_high_score(self.score)
+        # чтобы стартовая подсказка не рисовалась поверх экрана конца
+        self.show_start_hint = False
 
     def reset(self):
         self.current_tower_id = self.save_manager.get_selected_tower()
@@ -230,8 +265,11 @@ class Game:
         self.game_over_reason = None
         self.coins_earned = 0
 
+        # при новом запуске показываем подсказку снова
+        self.show_start_hint = True
+
     def show_game_over_screen(self):
-        over_text = self.over_font.render("GAME OVER", True, BLACK)
+        title = self.over_font.render("GAME OVER", True, BLACK)
         score_text = self.score_font.render(f"SCORE: {self.score}", True, BLACK)
 
         if self.game_over_reason == "misses":
@@ -245,10 +283,8 @@ class Game:
         coins_text = self.coins_font.render(coins_str, True, BLACK)
 
         button_text = self.mini_font.render("НАЖМИТЕ ЛЮБУЮ КНОПКУ", True, BLACK)
-
         blank_rect = button_text.get_rect()
-        blank = pygame.Surface((blank_rect.size), pygame.SRCALPHA)
-        blank = blank.convert_alpha()
+        blank = pygame.Surface((blank_rect.size), pygame.SRCALPHA).convert_alpha()
 
         instructions = [button_text, blank]
         index = 1
@@ -264,23 +300,52 @@ class Game:
                 if event.type == self.BLINK_EVENT:
                     index = 1 if index == 0 else 0
 
-            self.screen.blit(self.bg_big, (0, self.bg_y))
+            self.screen.blit(self.bg_end, (0, 0))
 
             cx = SCREEN_WIDTH // 2
 
-            over_rect = over_text.get_rect(center=(cx, 140))
-            self.screen.blit(over_text, over_rect)
+            # панель в стиле кнопок меню
+            panel_width = SCREEN_WIDTH - 80
+            panel_height = 260
+            base_color = (180, 200, 230)
+            border_color = (20, 20, 20)
 
-            score_rect = score_text.get_rect(center=(cx, 210))
+            panel_rect = pygame.Rect(
+                cx - panel_width // 2,
+                160,
+                panel_width,
+                panel_height
+            )
+
+            # тень
+            shadow_rect = panel_rect.copy()
+            shadow_rect.x += 4
+            shadow_rect.y += 4
+            pygame.draw.rect(self.screen, (0, 0, 0, 80), shadow_rect, border_radius=16)
+
+            # сама «кнопка»
+            pygame.draw.rect(self.screen, base_color, panel_rect, border_radius=16)
+            pygame.draw.rect(self.screen, border_color, panel_rect, 3, border_radius=16)
+
+            # текст внутри панели
+            y = panel_rect.top + 55
+            title_rect = title.get_rect(center=(cx, y))
+            self.screen.blit(title, title_rect)
+
+            y += 50
+            score_rect = score_text.get_rect(center=(cx, y))
             self.screen.blit(score_text, score_rect)
 
-            reason_rect = reason_text.get_rect(center=(cx, 260))
+            y += 45
+            reason_rect = reason_text.get_rect(center=(cx, y))
             self.screen.blit(reason_text, reason_rect)
 
-            coins_rect = coins_text.get_rect(center=(cx, 305))
+            y += 40
+            coins_rect = coins_text.get_rect(center=(cx, y))
             self.screen.blit(coins_text, coins_rect)
 
-            instr_rect = instructions[index].get_rect(center=(cx, 360))
+            y += 40
+            instr_rect = instructions[index].get_rect(center=(cx, y))
             self.screen.blit(instructions[index], instr_rect)
 
             pygame.display.update()

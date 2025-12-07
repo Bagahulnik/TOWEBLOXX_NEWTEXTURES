@@ -4,7 +4,7 @@ SCREEN_HEIGHT = 960
 FPS = 60
 
 # -------- Размеры блока --------
-BLOCK_WIDTH = 63
+BLOCK_WIDTH = 96
 BLOCK_HEIGHT = 63
 
 # -------- Кран, верёвка, крюк --------
@@ -22,7 +22,7 @@ SAFE_GAP_TO_HOOK = 80  # минимальный зазор от верха ба�
 MAX_TOWER_TOP_Y = -9999
 
 HOOK_BOTTOM_OFFSET = 10
-HOOK_ATTACH_OFFSET_X = 30
+HOOK_ATTACH_OFFSET_X = 60
 HOOK_ATTACH_OFFSET_Y = 30
 
 # -------- Физика --------
@@ -46,8 +46,16 @@ RED = (255, 0, 0)
 
 # -------- Пути --------
 ASSETS_PATH = "assets/"
+
 TOWERS_PATH = ASSETS_PATH + "towers/"
-DATA_PATH = "data/"
+MUSIC_PATH  = ASSETS_PATH + "music/"
+DATA_PATH   = "data/"
+
+UI_PATH     = ASSETS_PATH + "ui/"
+SFX_PATH    = ASSETS_PATH + "sfx/"
+CRANE_PATH  = ASSETS_PATH + "crane/"
+
+
 
 # -------- Магазин --------
 TOWER_PRICES = {
