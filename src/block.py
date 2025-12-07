@@ -9,6 +9,8 @@ class Block(pygame.sprite.Sprite):
         self.tower_sprites = tower_sprites
         self.origin = origin
         self.block_number = block_number
+        self.game_force = INITIAL_FORCE
+
 
         # выбор спрайта
         if block_number == 0:
@@ -61,7 +63,7 @@ class Block(pygame.sprite.Sprite):
         self.speed += self.acceleration
 
     def get_force(self):
-        return INITIAL_FORCE
+        return self.game_force
 
     def drop(self, tower):
         if self.state == "ready":

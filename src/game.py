@@ -12,7 +12,6 @@ class Game:
         self.screen = screen
         self.save_manager = save_manager
         self.asset_loader = asset_loader
-        self.bg_triggered_for_level = -1
 
         self.crane_image = pygame.image.load(f"{ASSETS_PATH}crane.png").convert_alpha()
         self.rope_hook_image = pygame.image.load(f"{ASSETS_PATH}rope_with_hook.png").convert_alpha()
@@ -31,8 +30,13 @@ class Game:
 
         self.score = 0
         self.misses = 0
-        self.force = INITIAL_FORCE
+        self.force = INITIAL_FORCE  # ← стартовая скорость
         self.coins_earned = 0
+
+        # ---------- ПЛАВНАЯ АНИМАЦИЯ ФОНА ----------
+        self.bg_anim_active = False
+        self.bg_anim_progress = 0
+        self.bg_anim_target_y = 0
 
         self.score_font = pygame.font.Font("freesansbold.ttf", 32)
         self.miss_font = pygame.font.Font("freesansbold.ttf", 24)
@@ -105,7 +109,9 @@ class Game:
     def update(self):
         state = self.block.get_state()
 
+        # ← ПЕРЕДАЁМ ТЕКУЩУЮ СКОРОСТЬ В БЛОК ПЕРЕД swing()
         if state == "ready":
+            self.block.game_force = self.force  # ← передаём ускоренную силу
             self.block.swing()
 
         elif state == "dropped":
@@ -114,6 +120,9 @@ class Game:
         elif state == "landed":
             if self.block.to_build(self.tower):
                 self.tower.build(self.block)
+
+                # ← ПОСТЕПЕННОЕ УСКОРЕНИЕ СКОРОСТИ КАЧАНИЯ
+                self.force *= 1.015  # +1.5% скорости за каждый блок
 
                 if self.tower.is_golden():
                     self.sounds['gold'].play()
@@ -155,26 +164,41 @@ class Game:
             else:
                 self.block.respawn(self.tower)
 
-        # ---------- шаг большого фона по высоте башни ----------
-        # когда башня достигает N блоков – сдвигаем фон и «обрезаем» низ башни
-        if self.tower.size >= TOWER_BLOCKS_PER_STEP:
-            # сдвигаем фон вниз на 2 блока
-            self.bg_y += BG_SCROLL_STEP
-            min_bg_y = SCREEN_HEIGHT - self.bg_big.get_height()
-            if self.bg_y < min_bg_y:
-                self.bg_y = min_bg_y
-
-            # уменьшаем логическую высоту башни, как будто нижние блоки ушли за экран
-            self.tower.size = BASE_ONSCREEN_BLOCKS
-            self.tower.onscreen = self.tower.size
-            self.tower.height = self.tower.size * BLOCK_HEIGHT
-            base_y = SCREEN_HEIGHT - BLOCK_HEIGHT
-            self.tower.y = base_y - (self.tower.height - BLOCK_HEIGHT)
-
-            # списки X и спрайтов тоже нужно обрезать
-            self.tower.xlist = self.tower.xlist[-self.tower.size:]
-            self.tower.sprite_list = self.tower.sprite_list[-self.tower.size:]
-            self.tower.golden_list = self.tower.golden_list[-self.tower.size:]
+        # ---------- ПЛАВНАЯ АНИМАЦИЯ ТОЛЬКО ФОНА ----------
+        if self.bg_anim_active:
+            self.bg_anim_progress += 1
+            progress_ratio = self.bg_anim_progress / BG_SCROLL_DURATION
+            
+            # двигаем ТОЛЬКО фон плавно
+            self.bg_y = self.bg_anim_target_y * progress_ratio + self.bg_y * (1 - progress_ratio)
+            
+            if self.bg_anim_progress >= BG_SCROLL_DURATION:
+                # анимация завершена
+                self.bg_y = self.bg_anim_target_y
+                self.bg_anim_active = False
+                self.bg_anim_progress = 0
+        else:
+            # проверяем триггер запуска анимации
+            if self.tower.size >= TOWER_BLOCKS_PER_STEP:
+                # 1) МОМЕНТАЛЬНО обрезаем башню
+                self.tower.size = BASE_ONSCREEN_BLOCKS
+                self.tower.onscreen = self.tower.size
+                self.tower.height = self.tower.size * BLOCK_HEIGHT
+                base_y = SCREEN_HEIGHT - BLOCK_HEIGHT
+                self.tower.y = base_y - (self.tower.height - BLOCK_HEIGHT)
+                self.tower.xlist = self.tower.xlist[-self.tower.size:]
+                self.tower.sprite_list = self.tower.sprite_list[-self.tower.size:]
+                self.tower.golden_list = self.tower.golden_list[-self.tower.size:]
+                
+                # 2) запускаем плавную анимацию ТОЛЬКО фона
+                self.bg_anim_active = True
+                self.bg_anim_progress = 0
+                self.bg_anim_target_y = self.bg_y + BG_SCROLL_STEP
+                
+                # ограничиваем нижний край
+                min_bg_y = SCREEN_HEIGHT - self.bg_big.get_height()
+                if self.bg_anim_target_y < min_bg_y:
+                    self.bg_anim_target_y = min_bg_y
 
         self.check_game_over()
 
@@ -210,9 +234,12 @@ class Game:
         self.misses = 0
         self.score = 0
 
+        # сбрасываем фон, анимацию и СКОРОСТЬ
         self.bg_y = SCREEN_HEIGHT - self.bg_big.get_height()
+        self.bg_anim_active = False
+        self.bg_anim_progress = 0
+        self.force = INITIAL_FORCE  # ← сбрасываем скорость до начальной
 
-        self.force = INITIAL_FORCE
         self.game_over = False
         self.game_over_reason = None
         self.coins_earned = 0
