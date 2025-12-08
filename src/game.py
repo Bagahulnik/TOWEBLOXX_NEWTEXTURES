@@ -21,7 +21,7 @@ class Game:
         # фоны
         self.bg_big = pygame.image.load(f"{ASSETS_PATH}bg/bg_group.png").convert()
         self.bg_y = SCREEN_HEIGHT - self.bg_big.get_height()
-
+        
         # фон для конечного экрана
         self.bg_end = pygame.image.load(f"{ASSETS_PATH}bg/bg_end.png").convert()
 
@@ -96,7 +96,6 @@ class Game:
             f"Промахи: {self.misses}/{MAX_MISSES}", True, BLACK
         )
 
-        # размеры блока по тексту
         padding_x = 10
         padding_y = 10
 
@@ -108,11 +107,9 @@ class Game:
         base_color = (180, 200, 230)
         border_color = (20, 20, 20)
 
-        # фон и обводка, как у кнопок
         pygame.draw.rect(self.screen, base_color, panel_rect, border_radius=10)
         pygame.draw.rect(self.screen, border_color, panel_rect, 2, border_radius=10)
 
-        # текст внутри
         x_center = panel_rect.centerx
         y = panel_rect.top + padding_y + score_text.get_height() // 2
 
@@ -327,7 +324,10 @@ class Game:
         self.show_start_hint = True
         self.people_enabled = False
 
-    def show_game_over_screen(self):
+    def draw_game_over_screen(self):
+        """Рисует экран game over на виртуальном screen."""
+        self.screen.blit(self.bg_end, (0, 0))
+
         title = self.over_font.render("GAME OVER", True, BLACK)
         score_text = self.score_font.render(f"SCORE: {self.score}", True, BLACK)
 
@@ -337,7 +337,6 @@ class Game:
             reason_str = "Башня обрушилась"
 
         reason_text = self.reason_font.render(reason_str, True, (200, 0, 0))
-
         coins_str = f"+{self.coins_earned} монет"
         coins_text = self.coins_font.render(coins_str, True, BLACK)
 
@@ -345,64 +344,47 @@ class Game:
         blank_rect = button_text.get_rect()
         blank = pygame.Surface((blank_rect.size), pygame.SRCALPHA).convert_alpha()
 
+        # переключение мигания по времени
         instructions = [button_text, blank]
-        index = 1
-        waiting = True
+        index = (pygame.time.get_ticks() // 800) % 2
 
-        while waiting:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    return 'quit'
-                if event.type == pygame.KEYUP:
-                    waiting = False
-                    return 'menu'
-                if event.type == self.BLINK_EVENT:
-                    index = 1 if index == 0 else 0
+        cx = SCREEN_WIDTH // 2
+        panel_width = SCREEN_WIDTH - 80
+        panel_height = 260
+        base_color = (180, 200, 230)
+        border_color = (20, 20, 20)
 
-            self.screen.blit(self.bg_end, (0, 0))
+        panel_rect = pygame.Rect(cx - panel_width // 2, 160, panel_width, panel_height)
+        shadow_rect = panel_rect.copy()
+        shadow_rect.x += 4
+        shadow_rect.y += 4
 
-            cx = SCREEN_WIDTH // 2
+        pygame.draw.rect(self.screen, (0, 0, 0, 80), shadow_rect, border_radius=16)
+        pygame.draw.rect(self.screen, base_color, panel_rect, border_radius=16)
+        pygame.draw.rect(self.screen, border_color, panel_rect, 3, border_radius=16)
 
-            panel_width = SCREEN_WIDTH - 80
-            panel_height = 260
-            base_color = (180, 200, 230)
-            border_color = (20, 20, 20)
+        y = panel_rect.top + 55
+        title_rect = title.get_rect(center=(cx, y))
+        self.screen.blit(title, title_rect)
 
-            panel_rect = pygame.Rect(
-                cx - panel_width // 2,
-                160,
-                panel_width,
-                panel_height
-            )
+        y += 50
+        score_rect = score_text.get_rect(center=(cx, y))
+        self.screen.blit(score_text, score_rect)
 
-            shadow_rect = panel_rect.copy()
-            shadow_rect.x += 4
-            shadow_rect.y += 4
-            pygame.draw.rect(self.screen, (0, 0, 0, 80), shadow_rect, border_radius=16)
+        y += 45
+        reason_rect = reason_text.get_rect(center=(cx, y))
+        self.screen.blit(reason_text, reason_rect)
 
-            pygame.draw.rect(self.screen, base_color, panel_rect, border_radius=16)
-            pygame.draw.rect(self.screen, border_color, panel_rect, 3, border_radius=16)
+        y += 40
+        coins_rect = coins_text.get_rect(center=(cx, y))
+        self.screen.blit(coins_text, coins_rect)
 
-            y = panel_rect.top + 55
-            title_rect = title.get_rect(center=(cx, y))
-            self.screen.blit(title, title_rect)
+        y += 40
+        instr_rect = instructions[index].get_rect(center=(cx, y))
+        self.screen.blit(instructions[index], instr_rect)
 
-            y += 50
-            score_rect = score_text.get_rect(center=(cx, y))
-            self.screen.blit(score_text, score_rect)
-
-            y += 45
-            reason_rect = reason_text.get_rect(center=(cx, y))
-            self.screen.blit(reason_text, reason_rect)
-
-            y += 40
-            coins_rect = coins_text.get_rect(center=(cx, y))
-            self.screen.blit(coins_text, coins_rect)
-
-            y += 40
-            instr_rect = instructions[index].get_rect(center=(cx, y))
-            self.screen.blit(instructions[index], instr_rect)
-
-            pygame.display.update()
-
-        return 'menu'
+    def handle_game_over_input(self, event):
+        """Обрабатывает нажатия на экране game over."""
+        if event.type == pygame.KEYUP:
+            return 'menu'
+        return None

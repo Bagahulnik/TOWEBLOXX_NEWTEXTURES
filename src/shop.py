@@ -123,14 +123,23 @@ class Shop:
 
     def handle_event(self, event):
         """Обработка событий магазина."""
+        # Нажатие ESC возвращает в меню
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                return "back"
+        
+        # Клик по кнопке "Назад"
         if self.back_button.handle_event(event):
             return "back"
-
+        
+        # Обработка кликов по карточкам башен
         for card in self.tower_cards:
             res = card.handle_event(event)
             if res == "button":
                 return self.handle_card_button(card)
+        
         return None
+
 
     def handle_card_button(self, card: TowerCard):
         """Нажатие на кнопку на карточке."""
