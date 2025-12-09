@@ -84,4 +84,13 @@ TOWER_NAMES = {
 BG_SCROLL_STEP = BLOCK_HEIGHT * 2      # шаг = 2 блока  
 TOWER_BLOCKS_PER_STEP = 6              # смена на 6 блоках (в 2 раза раньше)
 BASE_ONSCREEN_BLOCKS = 4               # оставляем 4 блока
-BG_SCROLL_DURATION = 60                # анимация 20 кадров (~0.33 сек при 60 FPS)
+BG_SCROLL_DURATION = 60     
+
+# Слоу-мо эффекты
+SLOWMO_DURATION = 30  # 0.5 сек при 60 FPS
+SLOWMO_FACTOR = 0.3   # 30% скорости
+
+# Комбо бонусы (НОВЫЕ!)
+COMBO_TIER_1 = 2  # x1.5 скорость (было 3)
+COMBO_TIER_2 = 4  # x2.0 скорость + слоу-мо (было 5)  
+COMBO_TIER_3 = 6  # x2.5 скорость + супер слоу-мо (было 8)

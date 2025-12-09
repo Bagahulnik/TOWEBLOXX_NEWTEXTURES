@@ -6,13 +6,13 @@ from src.block import Block
 from src.tower import Tower
 from src.constants import *
 from src.balloon_guy import BalloonGuy
+from src.particles import ParticleSystem
 
 
 class ImageButton:
     """Кнопка с картинкой и фоном как в настройках."""
     def __init__(self, x, y, image_path, size=(60, 60), click_sound=None):
         raw_image = pygame.image.load(image_path).convert_alpha()
-        # уменьшаем спрайт на 2px по длине и ширине
         sprite_size = (size[0] - 2, size[1] - 2)
         self.image = pygame.transform.smoothscale(raw_image, sprite_size)
         self.size = size
@@ -23,13 +23,10 @@ class ImageButton:
     def draw(self, screen):
         base_color = (180, 200, 230)
         border_color = (20, 20, 20)
-        # затемняем цвет при наведении
         if self.is_hovered:
             base_color = (140, 160, 190)
-        # фон кнопки
         pygame.draw.rect(screen, base_color, self.rect, border_radius=8)
         pygame.draw.rect(screen, border_color, self.rect, 2, border_radius=8)
-        # центрируем картинку (она на 2px меньше)
         img_x = self.rect.x + 1
         img_y = self.rect.y + 1
         screen.blit(self.image, (img_x, img_y))
@@ -55,11 +52,8 @@ class Game:
         self.crane_image = pygame.image.load(f"{CRANE_PATH}crane.png").convert_alpha()
         self.rope_hook_image = pygame.image.load(f"{CRANE_PATH}rope_with_hook.png").convert_alpha()
 
-        # фоны
         self.bg_big = pygame.image.load(f"{ASSETS_PATH}bg/bg_group.png").convert()
         self.bg_y = SCREEN_HEIGHT - self.bg_big.get_height()
-        
-        # фон для конечного экрана
         self.bg_end = pygame.image.load(f"{ASSETS_PATH}bg/bg_end.png").convert()
 
         self.sounds = asset_loader.load_sounds()
@@ -70,20 +64,27 @@ class Game:
         self.current_tower_id = save_manager.get_selected_tower()
         self.tower_sprites = asset_loader.load_tower_sprites(self.current_tower_id)
 
-        # башня и блок
         self.block = Block(self.tower_sprites, block_number=0)
         self.tower = Tower(self.tower_sprites)
 
-        # летающие человечки
         self.balloon_guys = pygame.sprite.Group()
         self._create_balloon_guys()
+
+        # КОМБО + ЧАСТИЦЫ + СЛОУ-МО
+        self.particles = ParticleSystem()
+        self.combo = 0
+        self.combo_timer = 0
+        
+        # 🎬 СЛОУ-МО СИСТЕМА
+        self.slowmo_active = False
+        self.slowmo_timer = 0
+        self.slowmo_intensity = 1.0  # 1.0 = нормально, 0.3 = медленно
 
         self.score = 0
         self.misses = 0
         self.force = INITIAL_FORCE
         self.coins_earned = 0
 
-        # параметры анимации скролла фона (старая рабочая система)
         self.bg_anim_active = False
         self.bg_anim_progress = 0
         self.bg_anim_target_y = 0
@@ -95,8 +96,6 @@ class Game:
         self.reason_font = pygame.font.Font("freesansbold.ttf", 24)
         self.coins_font = pygame.font.Font("freesansbold.ttf", 24)
         self.hint_font = pygame.font.Font("freesansbold.ttf", 18)
-
-        # шрифты для подсказок
         self.hint_title_font = pygame.font.Font("freesansbold.ttf", 40)
         self.hint_text_font = pygame.font.Font("freesansbold.ttf", 28)
         self.confirm_font = pygame.font.Font("freesansbold.ttf", 24)
@@ -107,17 +106,10 @@ class Game:
 
         self.game_over = False
         self.game_over_reason = None
-
-        # подсказка в начале игры
         self.show_start_hint = True
-
-        # окно подтверждения выхода
         self.show_exit_confirm = False
-
-        # человечки начинают лететь только после первого скролла фона
         self.people_enabled = False
 
-        # кнопки для game over экрана (размер 60×60, опущены ниже текста)
         cx = SCREEN_WIDTH // 2
         btn_y = 430
         spacing = 100
@@ -125,18 +117,14 @@ class Game:
         self.btn_back = ImageButton(cx - spacing, btn_y, f"{UI_PATH}arrow_back.png", size=(60, 60), click_sound=click_sound)
         self.btn_shop = ImageButton(cx, btn_y, f"{UI_PATH}store.png", size=(60, 60), click_sound=click_sound)
         self.btn_restart = ImageButton(cx + spacing, btn_y, f"{UI_PATH}restart.png", size=(60, 60), click_sound=click_sound)
-
-        # кнопка рестарт в правом верхнем углу во время игры (опущена на 5px с 30 до 35)
         self.btn_restart_game = ImageButton(SCREEN_WIDTH - 40, 35, f"{UI_PATH}restart.png", size=(50, 50), click_sound=click_sound)
 
     def _create_balloon_guys(self):
         xs = [80, 180, 300, 420]
         speed_y = -1.2
-        # порядок вылета: 0, 2, 1, 3
         order = [0, 2, 1, 3]
-
         for n, idx in enumerate(order):
-            delay_frames = n * 2 * FPS  # 0, 2, 4, 6 секунд
+            delay_frames = n * 2 * FPS
             guy = BalloonGuy(
                 person_id=idx + 1,
                 start_x=xs[idx],
@@ -147,16 +135,12 @@ class Game:
 
     def show_score(self):
         score_text = self.score_font.render(f"Score: {self.score}", True, BLACK)
-        misses_text = self.miss_font.render(
-            f"Промахи: {self.misses}/{MAX_MISSES}", True, BLACK
-        )
+        misses_text = self.miss_font.render(f"Промахи: {self.misses}/{MAX_MISSES}", True, BLACK)
 
         padding_x = 10
         padding_y = 10
-
         w = max(score_text.get_width(), misses_text.get_width()) + padding_x * 2
         h = score_text.get_height() + misses_text.get_height() + padding_y * 3
-
         panel_rect = pygame.Rect(8, 8, w, h)
 
         base_color = (180, 200, 230)
@@ -175,14 +159,64 @@ class Game:
         misses_rect = misses_text.get_rect(center=(x_center, y))
         self.screen.blit(misses_text, misses_rect)
 
+        # 🎯 КОМБО ТЕКСТ С УРОВНЯМИ
+        if self.combo > 0 and self.combo_timer > 0:
+            combo_mult = 1 + min(self.combo * 0.3, 2.5)
+            
+            # БОЛЬШИЙ ШРИФТ ДЛЯ КОМБО
+            combo_font = pygame.font.Font("freesansbold.ttf", 48)  # БЫЛО 32!
+            
+            if self.combo >= COMBO_TIER_3:  # 6+
+                combo_color = (255, 50, 255)
+                combo_text = f"⚡ MEGA x{combo_mult:.1f}! ⚡"
+            elif self.combo >= COMBO_TIER_2:  # 4-5
+                combo_color = (255, 100, 0)
+                combo_text = f"🔥 SUPER x{combo_mult:.1f}! 🔥"
+            elif self.combo >= COMBO_TIER_1:  # 2-3
+                combo_color = (255, 215, 0)
+                combo_text = f"✨ COMBO x{combo_mult:.1f}! ✨"
+            else:
+                combo_color = (255, 215, 0)
+                combo_text = f"COMBO x{combo_mult:.1f}!"
+            
+            # 🖤 ЧЕРНАЯ ОБВОДКА (3px)
+            outline_surf = combo_font.render(combo_text, True, BLACK)
+            outline_rect = outline_surf.get_rect(center=(SCREEN_WIDTH // 2, 120))  # +20px НИЖЕ!
+            
+            # РИСУЕМ ОБВОДКУ (несколько слоев для толщины)
+            for dx in [-2, 0, 2]:
+                for dy in [-2, 0, 2]:
+                    if dx != 0 or dy != 0:
+                        self.screen.blit(outline_surf, (outline_rect.x + dx, outline_rect.y + dy))
+            
+            # ✅ ОСНОВНОЙ ТЕКСТ СВЕРХУ
+            combo_surf = combo_font.render(combo_text, True, combo_color)
+            combo_rect = combo_surf.get_rect(center=(SCREEN_WIDTH // 2, 120))
+            self.screen.blit(combo_surf, combo_rect)
+
+        # 🎬 СЛОУ-МО ИНДИКАТОР
+        if self.slowmo_active:
+            slowmo_text = self.miss_font.render("⏰ SLOW-MOTION", True, (100, 200, 255))
+            slowmo_rect = slowmo_text.get_rect(center=(SCREEN_WIDTH // 2, 100))
+            self.screen.blit(slowmo_text, slowmo_rect)
+
     def draw_background(self):
         self.screen.blit(self.bg_big, (0, self.bg_y))
+        
+        # 🎬 ЗАТЕМНЕНИЕ ПРИ СЛОУ-МО
+        if self.slowmo_active:
+            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            alpha = int(30 * (1.0 - self.slowmo_intensity))
+            overlay.fill((0, 0, 50, alpha))
+            self.screen.blit(overlay, (0, 0))
 
     def draw(self):
         self.draw_background()
         self.screen.blit(self.crane_image, (0, 0))
 
-        # людишки (когда включены)
+        # Частицы с учетом слоу-мо
+        self.particles.draw(self.screen)
+
         if self.people_enabled:
             self.balloon_guys.draw(self.screen)
 
@@ -200,19 +234,15 @@ class Game:
         self.screen.blit(rot_rope_hook, rope_hook_rect)
 
         self.show_score()
-        # кнопка рестарт в правом верхнем углу
         self.btn_restart_game.draw(self.screen)
-        
         self.tower.wobble()
 
         if self.tower.get_display():
             self.tower.display(self.screen, scroll_y=0)
         self.block.display(self.screen, self.tower, scroll_y=0)
 
-        # подсказка в начале игры
         if self.show_start_hint:
             self.draw_start_hint()
-
         if self.show_exit_confirm:
             self.draw_exit_confirm()
 
@@ -235,7 +265,6 @@ class Game:
         self.screen.blit(line2, line2_rect)
 
     def draw_exit_confirm(self):
-        """Окно подтверждения выхода во время игры."""
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 150))
         self.screen.blit(overlay, (0, 0))
@@ -251,7 +280,6 @@ class Game:
         pygame.draw.rect(self.screen, base_color, panel_rect, border_radius=16)
         pygame.draw.rect(self.screen, border_color, panel_rect, 3, border_radius=16)
 
-        # многострочный текст
         title1 = self.confirm_font.render("Вы уверены что", True, BLACK)
         title2 = self.confirm_font.render("хотите выйти?", True, BLACK)
         line1 = self.confirm_small_font.render("ENTER - подтвердить", True, BLACK)
@@ -269,7 +297,6 @@ class Game:
 
     def handle_game_events(self, event):
         if self.show_exit_confirm:
-            # обработка окна подтверждения выхода
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RETURN:
                     return 'confirm_exit'
@@ -277,7 +304,6 @@ class Game:
                     self.show_exit_confirm = False
                     return None
 
-        # кнопка рестарт в игре
         if self.btn_restart_game.handle_event(event):
             return 'restart_game'
 
@@ -291,11 +317,37 @@ class Game:
                     self.block.drop(self.tower)
         return None
 
+    def activate_slowmo(self, duration=SLOWMO_DURATION, factor=SLOWMO_FACTOR):
+        """🎬 Активировать эффект замедления"""
+        self.slowmo_active = True
+        self.slowmo_timer = duration
+        self.slowmo_intensity = factor
+        print(f"🎬 SLOWMO ACTIVATED! Duration={duration}, Factor={factor}")
+
     def update(self):
+        # 🎬 ОБНОВЛЕНИЕ СЛОУ-МО
+        if self.slowmo_active:
+            self.slowmo_timer -= 1
+            if self.slowmo_timer <= 0:
+                self.slowmo_active = False
+                self.slowmo_intensity = 1.0
+        
+        # Применяем слоу-мо ко всем системам
+        time_scale = self.slowmo_intensity if self.slowmo_active else 1.0
+        
         state = self.block.get_state()
 
         if state == "ready":
-            self.block.game_force = self.force
+            # 🚀 КОМБО УСКОРЕНИЕ
+            combo_speed_boost = 1.0
+            if self.combo >= COMBO_TIER_3:
+                combo_speed_boost = 2.5
+            elif self.combo >= COMBO_TIER_2:
+                combo_speed_boost = 2.0
+            elif self.combo >= COMBO_TIER_1:
+                combo_speed_boost = 1.5
+            
+            self.block.game_force = self.force * combo_speed_boost * time_scale
             self.block.swing()
 
         elif state == "dropped":
@@ -304,16 +356,37 @@ class Game:
         elif state == "landed":
             if self.block.to_build(self.tower):
                 self.tower.build(self.block)
-
                 self.force *= 1.015
+
+                block_screen_x = self.tower.xlist[-1] + BLOCK_WIDTH // 2 + self.tower.x + self.tower.change
+                block_screen_y = self.tower.y + BLOCK_HEIGHT * (self.tower.size - 1) - BLOCK_HEIGHT // 2
 
                 if self.tower.is_golden():
                     if not self.sound_muted:
                         self.sounds['gold'].play()
-                    self.score += 2
-                    self.save_manager.add_coins(10)
-                    self.coins_earned += 10
+                    
+                    # 🔥 ВЗРЫВ + КОМБО
+                    self.particles.add_explosion(block_screen_x, block_screen_y, count=50)
+                    
+                    self.combo += 1
+                    self.combo_timer = 180
+                    score_mult = 1 + min(self.combo * 0.3, 2.5)
+                    
+                    # 🎬 СЛОУ-МО ПРИ ВЫСОКОМ КОМБО
+                    if self.combo >= COMBO_TIER_3:
+                        self.activate_slowmo(duration=45, factor=0.25)  # Супер медленно
+                    elif self.combo >= COMBO_TIER_2:
+                        self.activate_slowmo(duration=30, factor=0.3)
+                    
+                    self.score += int(2 * score_mult)
+                    self.save_manager.add_coins(int(10 * score_mult))
+                    self.coins_earned += int(10 * score_mult)
+                    
+                    print(f"🟡 GOLD COMBO #{self.combo} x{score_mult:.1f}!")
                 else:
+                    self.particles.add_build_particles(block_screen_x, block_screen_y, count=30)
+                    self.combo = 0
+                    
                     if not self.sound_muted:
                         self.sounds['build'].play()
                     self.score += 1
@@ -351,11 +424,10 @@ class Game:
             else:
                 self.block.respawn(self.tower)
 
-        # СТАРАЯ РАБОЧАЯ ЛОГИКА СКРОЛЛА ФОНА
+        # Скролл фона
         if self.bg_anim_active:
             self.bg_anim_progress += 1
             progress_ratio = self.bg_anim_progress / BG_SCROLL_DURATION
-
             self.bg_y = self.bg_anim_target_y * progress_ratio + self.bg_y * (1 - progress_ratio)
 
             if self.bg_anim_progress >= BG_SCROLL_DURATION:
@@ -381,12 +453,18 @@ class Game:
                 if self.bg_anim_target_y < min_bg_y:
                     self.bg_anim_target_y = min_bg_y
 
-                # как только первый раз начали скроллить фон — запускаем людей
                 if not self.people_enabled:
                     self.people_enabled = True
 
         if self.people_enabled:
             self.balloon_guys.update()
+
+        # 🎬 ЧАСТИЦЫ С СЛОУ-МО
+        for _ in range(int(1 * time_scale)):
+            self.particles.update()
+        
+        if self.combo_timer > 0:
+            self.combo_timer -= 1
 
         self.check_game_over()
 
@@ -420,26 +498,27 @@ class Game:
         self.block = Block(self.tower_sprites, block_number=0)
         self.tower = Tower(self.tower_sprites)
 
+        self.particles = ParticleSystem()
+        self.combo = 0
+        self.combo_timer = 0
+        self.slowmo_active = False
+        self.slowmo_timer = 0
+        self.slowmo_intensity = 1.0
+
         self.misses = 0
         self.score = 0
-
-        # сброс фона (старая система)
         self.bg_y = SCREEN_HEIGHT - self.bg_big.get_height()
         self.bg_anim_active = False
         self.bg_anim_progress = 0
-
         self.force = INITIAL_FORCE
-
         self.game_over = False
         self.game_over_reason = None
         self.coins_earned = 0
-
         self.show_start_hint = True
         self.show_exit_confirm = False
         self.people_enabled = False
 
     def draw_game_over_screen(self):
-        """Рисует экран game over на виртуальном screen."""
         self.screen.blit(self.bg_end, (0, 0))
 
         title = self.over_font.render("GAME OVER", True, BLACK)
@@ -485,12 +564,10 @@ class Game:
         coins_rect = coins_text.get_rect(center=(cx, y))
         self.screen.blit(coins_text, coins_rect)
 
-        # кнопки внутри панели
         self.btn_back.draw(self.screen)
         self.btn_shop.draw(self.screen)
         self.btn_restart.draw(self.screen)
 
-        # подсказки под кнопками
         hint_y = 500
         hint1 = self.hint_font.render("ESC", True, BLACK)
         hint2 = self.hint_font.render("S", True, BLACK)
@@ -501,7 +578,6 @@ class Game:
         self.screen.blit(hint3, hint3.get_rect(center=(cx + btn_spacing, hint_y)))
 
     def handle_game_over_input(self, event):
-        """Обрабатывает нажатия на экране game over."""
         if self.btn_back.handle_event(event):
             return 'menu'
         if self.btn_shop.handle_event(event):

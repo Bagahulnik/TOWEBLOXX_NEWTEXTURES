@@ -3,6 +3,7 @@ from pygame import mixer
 
 from src.game import Game
 from src.shop import Shop
+from src.particles import ParticleSystem 
 from src.ui import MainMenu, SettingsMenu
 from src.save_manager import SaveManager
 from src.asset_loader import AssetLoader
