@@ -1,12 +1,22 @@
 import pygame
+
 from src.constants import ASSETS_PATH, UI_PATH, SCREEN_WIDTH, SCREEN_HEIGHT, BLACK
 
 
 class Button:
-    def __init__(self, x, y, width, height, text, font,
-                 color=(180, 200, 230),
-                 text_color=BLACK,
-                 hover_color=(150, 180, 220)):
+    def __init__(
+        self,
+        x,
+        y,
+        width,
+        height,
+        text,
+        font,
+        color=(180, 200, 230),
+        text_color=BLACK,
+        hover_color=(150, 180, 220),
+        click_sound=None,
+    ):
         self.rect = pygame.Rect(x, y, width, height)
         self.text = text
         self.font = font
@@ -14,6 +24,7 @@ class Button:
         self.text_color = text_color
         self.hover_color = hover_color
         self.is_hovered = False
+        self.click_sound = click_sound
 
     def draw(self, screen):
         base_color = self.hover_color if self.is_hovered else self.color
@@ -37,13 +48,26 @@ class Button:
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.is_hovered:
+                if self.click_sound:
+                    self.click_sound.play()
                 return True
+
         return False
 
 
 class TowerCard:
-    def __init__(self, x, y, tower_id, tower_name, price,
-                 is_unlocked, is_selected, preview_sprite):
+    def __init__(
+        self,
+        x,
+        y,
+        tower_id,
+        tower_name,
+        price,
+        is_unlocked,
+        is_selected,
+        preview_sprite,
+        click_sound=None,
+    ):
         self.rect = pygame.Rect(x, y, 180, 180)
         self.tower_id = tower_id
         self.tower_name = tower_name
@@ -52,6 +76,7 @@ class TowerCard:
         self.is_selected = is_selected
         self.preview_sprite = preview_sprite
         self.is_hovered = False
+        self.click_sound = click_sound
 
         self.font = pygame.font.Font("freesansbold.ttf", 18)
         self.small_font = pygame.font.Font("freesansbold.ttf", 14)
@@ -60,18 +85,40 @@ class TowerCard:
             self.rect.x + 20,
             self.rect.y + self.rect.height - 36,
             self.rect.width - 40,
-            26
+            26,
         )
+
+        # флаг и таймер ошибки (мигание красным)
+        self.error_flash = False
+        self.error_flash_timer = 0  # в кадрах
+
+    def trigger_error_flash(self, frames=20):
+        """Включить мигание красным на несколько кадров."""
+        self.error_flash = True
+        self.error_flash_timer = frames
+
+    def update(self):
+        """Обновить состояние (уменьшаем таймер мигания)."""
+        if self.error_flash:
+            self.error_flash_timer -= 1
+            if self.error_flash_timer <= 0:
+                self.error_flash = False
 
     def draw(self, screen):
         base_color = (180, 200, 230)
         border_color = (20, 20, 20)
 
+        # если ошибка активна — мигаем красным
+        if self.error_flash and (self.error_flash_timer // 3) % 2 == 0:
+            card_color = (255, 120, 120)
+        else:
+            card_color = base_color
+
         if self.is_selected:
             pygame.draw.rect(screen, (144, 238, 144), self.rect, border_radius=8)
             pygame.draw.rect(screen, border_color, self.rect, 4, border_radius=8)
         else:
-            pygame.draw.rect(screen, base_color, self.rect, border_radius=8)
+            pygame.draw.rect(screen, card_color, self.rect, border_radius=8)
             pygame.draw.rect(screen, border_color, self.rect, 3, border_radius=8)
 
         if self.preview_sprite:
@@ -118,25 +165,60 @@ class TowerCard:
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.button_rect.collidepoint(event.pos):
+                # ВНИМАНИЕ: сам клик-звук теперь будет играться в Shop
+                # только если монет хватает. Здесь звук не трогаем.
                 return "button"
 
         return None
 
 
 class MainMenu:
-    def __init__(self, screen):
+    def __init__(self, screen, click_sound=None):
         self.screen = screen
         self.font_title = pygame.font.Font("freesansbold.ttf", 64)
         self.font_button = pygame.font.Font("freesansbold.ttf", 32)
+        self.click_sound = click_sound
 
         btn_w, btn_h = 260, 70
         center_x = SCREEN_WIDTH // 2 - btn_w // 2
 
         self.buttons = {
-            'play': Button(center_x, 260, btn_w, btn_h, "Играть", self.font_button),
-            'shop': Button(center_x, 350, btn_w, btn_h, "Магазин", self.font_button),
-            'settings': Button(center_x, 440, btn_w, btn_h, "Настройки", self.font_button),
-            'quit': Button(center_x, 530, btn_w, btn_h, "Выход", self.font_button),
+            "play": Button(
+                center_x,
+                260,
+                btn_w,
+                btn_h,
+                "Играть",
+                self.font_button,
+                click_sound=click_sound,
+            ),
+            "shop": Button(
+                center_x,
+                350,
+                btn_w,
+                btn_h,
+                "Магазин",
+                self.font_button,
+                click_sound=click_sound,
+            ),
+            "settings": Button(
+                center_x,
+                440,
+                btn_w,
+                btn_h,
+                "Настройки",
+                self.font_button,
+                click_sound=click_sound,
+            ),
+            "quit": Button(
+                center_x,
+                530,
+                btn_w,
+                btn_h,
+                "Выход",
+                self.font_button,
+                click_sound=click_sound,
+            ),
         }
 
     def draw(self, background):
@@ -154,6 +236,7 @@ class MainMenu:
             title_rect.width + padding_x * 2,
             title_rect.height + padding_y * 2,
         )
+
         pygame.draw.rect(self.screen, (180, 200, 230), bg_rect, border_radius=12)
         pygame.draw.rect(self.screen, (20, 20, 20), bg_rect, 2, border_radius=12)
         self.screen.blit(title_surf, title_rect)
@@ -169,16 +252,17 @@ class MainMenu:
 
 
 class SettingsMenu:
-    def __init__(self, screen):
+    def __init__(self, screen, click_sound=None):
         self.screen = screen
         self.font_title = pygame.font.Font("freesansbold.ttf", 48)
         self.font_label = pygame.font.Font("freesansbold.ttf", 32)
         self.font_button = pygame.font.Font("freesansbold.ttf", 28)
+        self.click_sound = click_sound
 
         self.music_muted = False
         self.sfx_muted = False
         self.bg_index = 0
-        self.music_index = 0  # 0..4
+        self.music_index = 0
 
         # иконки громкости
         raw_loud = pygame.image.load(f"{UI_PATH}loud.png").convert_alpha()
@@ -199,6 +283,7 @@ class SettingsMenu:
         self.ARROW_SIZE = (32, 32)
         self.icon_left = pygame.transform.smoothscale(raw_left, self.ARROW_SIZE)
         self.icon_right = pygame.transform.smoothscale(raw_right, self.ARROW_SIZE)
+
         self.arrow_left_rect = pygame.Rect(0, 0, *self.ARROW_SIZE)
         self.arrow_right_rect = pygame.Rect(0, 0, *self.ARROW_SIZE)
 
@@ -210,26 +295,48 @@ class SettingsMenu:
             max_label_width = max(max_label_width, surf.get_width())
 
         label_bg_width = max_label_width + 40
-
         btn_size = 60
         gap_between = 20
-
         total_width = label_bg_width + gap_between + btn_size
         start_x = (SCREEN_WIDTH - total_width) // 2
-
         self.label_x = start_x
         btn_x = start_x + label_bg_width + gap_between
 
         top_y = 220
         gap_y = 100
 
-        self.mute_music_button = Button(btn_x, top_y, btn_size, btn_size, "", self.font_button)
-        self.mute_sfx_button = Button(btn_x, top_y + gap_y, btn_size, btn_size, "", self.font_button)
-        self.bg_toggle_button = Button(btn_x, top_y + gap_y * 2, btn_size, btn_size, "", self.font_button)
+        self.mute_music_button = Button(
+            btn_x, top_y, btn_size, btn_size, "", self.font_button, click_sound=click_sound
+        )
+        self.mute_sfx_button = Button(
+            btn_x,
+            top_y + gap_y,
+            btn_size,
+            btn_size,
+            "",
+            self.font_button,
+            click_sound=click_sound,
+        )
+        self.bg_toggle_button = Button(
+            btn_x,
+            top_y + gap_y * 2,
+            btn_size,
+            btn_size,
+            "",
+            self.font_button,
+            click_sound=click_sound,
+        )
 
         self.label_bg_width = label_bg_width
-
-        self.back_button = Button(20, SCREEN_HEIGHT - 80, 180, 50, "Назад", self.font_button)
+        self.back_button = Button(
+            20,
+            SCREEN_HEIGHT - 80,
+            180,
+            50,
+            "Назад",
+            self.font_button,
+            click_sound=click_sound,
+        )
 
     def draw(self, background):
         self.screen.blit(background, (0, 0))
@@ -246,6 +353,7 @@ class SettingsMenu:
             title_rect.width + padding_x * 2,
             title_rect.height + padding_y * 2,
         )
+
         pygame.draw.rect(self.screen, (180, 200, 230), bg_rect, border_radius=12)
         pygame.draw.rect(self.screen, (20, 20, 20), bg_rect, 2, border_radius=12)
         self.screen.blit(title_surf, title_rect)
@@ -253,27 +361,27 @@ class SettingsMenu:
         base_color = (180, 200, 230)
         border_color = (20, 20, 20)
 
-        # --- БЛОК МУЗЫКИ: "< Музыка 1/5 >" ---
+        # --- Блок музыки: "< Музыка 1/5 >" ---
         music_block_rect = pygame.Rect(
             self.label_x,
             self.mute_music_button.rect.centery - 30,
             self.label_bg_width,
-            60
+            60,
         )
+
         pygame.draw.rect(self.screen, base_color, music_block_rect, border_radius=10)
         pygame.draw.rect(self.screen, border_color, music_block_rect, 2, border_radius=10)
 
-        # стрелки внутри блока по краям
         center_y = music_block_rect.centery
         pad_side = 12
 
         self.arrow_left_rect.center = (
             music_block_rect.left + pad_side + self.ARROW_SIZE[0] // 2,
-            center_y
+            center_y,
         )
         self.arrow_right_rect.center = (
             music_block_rect.right - pad_side - self.ARROW_SIZE[0] // 2,
-            center_y
+            center_y,
         )
 
         for rect, icon in [(self.arrow_left_rect, self.icon_left),
@@ -283,25 +391,22 @@ class SettingsMenu:
                 rect.left - pad,
                 rect.top - pad,
                 rect.width + pad * 2,
-                rect.height + pad * 2
+                rect.height + pad * 2,
             )
             pygame.draw.rect(self.screen, base_color, bg_r, border_radius=8)
             pygame.draw.rect(self.screen, border_color, bg_r, 2, border_radius=8)
             self.screen.blit(icon, rect)
 
-        # текст "Музыка" и номер "1/5" между стрелками
         text_surf = self.font_label.render("Музыка", True, BLACK)
         track_surf = self.font_label.render(f"{self.music_index + 1}/5", True, BLACK)
 
         available_left = self.arrow_left_rect.right + 10
         available_right = self.arrow_right_rect.left - 10
 
-        # номер трека прижимаем к правому краю доступной области (с твоим сдвигом)
         track_rect = track_surf.get_rect()
         track_rect.centery = center_y
         track_rect.right = available_right - 20
 
-        # слово "Музыка" строго по центру между левой стрелкой и номером (тоже с твоим сдвигом)
         mid_x = (available_left + track_rect.left) / 2
         text_rect = text_surf.get_rect()
         text_rect.centery = center_y
@@ -315,57 +420,74 @@ class SettingsMenu:
             ("Звуки", self.mute_sfx_button),
             ("Фон меню/магазина", self.bg_toggle_button),
         ]
+
         for text, btn in labels_rest:
             surf = self.font_label.render(text, True, BLACK)
             label_bg_rect = pygame.Rect(
                 self.label_x,
                 btn.rect.centery - 30,
                 self.label_bg_width,
-                60
+                60,
             )
             pygame.draw.rect(self.screen, base_color, label_bg_rect, border_radius=10)
             pygame.draw.rect(self.screen, border_color, label_bg_rect, 2, border_radius=10)
             txt_rect = surf.get_rect(center=label_bg_rect.center)
             self.screen.blit(surf, txt_rect)
 
-        # кнопки mute/bg
         self.mute_music_button.draw(self.screen)
         self.mute_sfx_button.draw(self.screen)
         self.bg_toggle_button.draw(self.screen)
 
-        # иконки состояний
         icon_music = self.icon_silence if self.music_muted else self.icon_loud
         icon_sfx = self.icon_silence if self.sfx_muted else self.icon_loud
         icon_bg = self.icon_dark if self.bg_index == 0 else self.icon_light
 
-        self.screen.blit(icon_music, icon_music.get_rect(center=self.mute_music_button.rect.center))
-        self.screen.blit(icon_sfx, icon_sfx.get_rect(center=self.mute_sfx_button.rect.center))
-        self.screen.blit(icon_bg, icon_bg.get_rect(center=self.bg_toggle_button.rect.center))
+        self.screen.blit(
+            icon_music,
+            icon_music.get_rect(center=self.mute_music_button.rect.center),
+        )
+        self.screen.blit(
+            icon_sfx,
+            icon_sfx.get_rect(center=self.mute_sfx_button.rect.center),
+        )
+        self.screen.blit(
+            icon_bg,
+            icon_bg.get_rect(center=self.bg_toggle_button.rect.center),
+        )
 
         self.back_button.draw(self.screen)
 
     def handle_event(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                return "back"
+
         if self.mute_music_button.handle_event(event):
             self.music_muted = not self.music_muted
-            return 'mute_music'
+            return "mute_music"
 
         if self.mute_sfx_button.handle_event(event):
             self.sfx_muted = not self.sfx_muted
-            return 'mute_sfx'
+            return "mute_sfx"
 
         if self.bg_toggle_button.handle_event(event):
             self.bg_index = 1 - self.bg_index
-            return 'toggle_bg'
+            return "toggle_bg"
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.arrow_left_rect.collidepoint(event.pos):
+                if self.click_sound:
+                    self.click_sound.play()
                 self.music_index = (self.music_index - 1) % 5
-                return 'music_change'
+                return "music_change"
+
             if self.arrow_right_rect.collidepoint(event.pos):
+                if self.click_sound:
+                    self.click_sound.play()
                 self.music_index = (self.music_index + 1) % 5
-                return 'music_change'
+                return "music_change"
 
         if self.back_button.handle_event(event):
-            return 'back'
+            return "back"
 
         return None

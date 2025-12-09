@@ -84,5 +84,4 @@ TOWER_NAMES = {
 BG_SCROLL_STEP = BLOCK_HEIGHT * 2      # шаг = 2 блока  
 TOWER_BLOCKS_PER_STEP = 6              # смена на 6 блоках (в 2 раза раньше)
 BASE_ONSCREEN_BLOCKS = 4               # оставляем 4 блока
-BG_SCROLL_DURATION = 20                # анимация 20 кадров (~0.33 сек при 60 FPS)
-
+BG_SCROLL_DURATION = 60                # анимация 20 кадров (~0.33 сек при 60 FPS)

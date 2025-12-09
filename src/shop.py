@@ -1,26 +1,37 @@
 import pygame
+
 from src.ui import Button, TowerCard
 from src.constants import *
 from src.asset_loader import AssetLoader
 
 
 class Shop:
-    def __init__(self, screen, save_manager, asset_loader: AssetLoader):
+    def __init__(
+        self,
+        screen,
+        save_manager,
+        asset_loader: AssetLoader,
+        click_sound=None,
+        error_sound=None,
+    ):
         self.screen = screen
         self.save_manager = save_manager
         self.asset_loader = asset_loader
+        self.click_sound = click_sound
+        self.error_sound = error_sound
 
         self.font_title = pygame.font.Font("freesansbold.ttf", 32)
         self.font_coins = pygame.font.Font("freesansbold.ttf", 22)
 
-        # Кнопка "Назад" по центру и чуть ниже карточек
         btn_w, btn_h = 220, 55
         self.back_button = Button(
             (SCREEN_WIDTH - btn_w) // 2,
-            SCREEN_HEIGHT - 57,          # было -80, опустили ниже
-            btn_w, btn_h,
+            SCREEN_HEIGHT - 57,
+            btn_w,
+            btn_h,
             "Назад",
-            pygame.font.Font("freesansbold.ttf", 28)
+            pygame.font.Font("freesansbold.ttf", 28),
+            click_sound=click_sound,
         )
 
         self.tower_cards = []
@@ -37,13 +48,12 @@ class Shop:
         v_gap = 20
 
         total_width = cols * card_w + (cols - 1) * h_gap
-        start_x = (SCREEN_WIDTH - total_width) // 2   # ЦЕНТР по горизонтали
-        start_y = 120                                 # чуть ниже заголовка
+        start_x = (SCREEN_WIDTH - total_width) // 2
+        start_y = 120
 
         for i in range(1, 9):
             col = (i - 1) % cols
             row = (i - 1) // cols
-
             x = start_x + col * (card_w + h_gap)
             y = start_y + row * (card_h + v_gap)
 
@@ -51,24 +61,25 @@ class Shop:
             is_selected = self.save_manager.get_selected_tower() == i
 
             sprites = self.asset_loader.load_tower_sprites(i)
-            preview = sprites['mid'][0]
+            preview = sprites["mid"][0]
 
             card = TowerCard(
-                x, y, i,
+                x,
+                y,
+                i,
                 TOWER_NAMES[i],
                 TOWER_PRICES[i],
                 is_unlocked,
                 is_selected,
-                preview
+                preview,
+                click_sound=None,  # клик по кнопке теперь не проигрывает звук сам
             )
             self.tower_cards.append(card)
-
 
     def draw(self, background):
         """Отрисовка магазина."""
         self.screen.blit(background, (0, 0))
 
-        # ---------- Заголовок "Магазин башен" с плашкой ----------
         title_text = "Магазин башен"
         title_surf = self.font_title.render(title_text, True, BLACK)
         title_rect = title_surf.get_rect(center=(SCREEN_WIDTH // 2, 70))
@@ -81,81 +92,72 @@ class Shop:
             title_rect.width + padding_x * 2,
             title_rect.height + padding_y * 2,
         )
+
         base_color = (180, 200, 230)
         border_color = (20, 20, 20)
+
         pygame.draw.rect(self.screen, base_color, title_bg_rect, border_radius=12)
         pygame.draw.rect(self.screen, border_color, title_bg_rect, 2, border_radius=12)
         self.screen.blit(title_surf, title_rect)
 
-        # ---------- Монеты: общий серый фон + иконка + число ----------
-        coins = self.save_manager.get_coins()
-        coin_color = (255, 215, 0)
-        base_color = (180, 200, 230)
-        border_color = (20, 20, 20)
-
-        # позиция блока монет
-        coin_pos = (SCREEN_WIDTH - 90, 70)
-
-        # текст
-        coins_text = self.font_coins.render(str(coins), True, BLACK)
-        coins_rect = coins_text.get_rect(midleft=(coin_pos[0] + 18, coin_pos[1]))
-
-        # ---------- Монеты: только иконка + число, без фона ----------
         coins = self.save_manager.get_coins()
         coin_color = (255, 215, 0)
         coin_pos = (SCREEN_WIDTH - 90, 70)
 
-        # круг-иконка монеты
         pygame.draw.circle(self.screen, coin_color, coin_pos, 10)
         pygame.draw.circle(self.screen, (180, 140, 0), coin_pos, 10, 2)
 
-        # текст с количеством монет
         coins_text = self.font_coins.render(str(coins), True, BLACK)
         coins_rect = coins_text.get_rect(midleft=(coin_pos[0] + 18, coin_pos[1]))
         self.screen.blit(coins_text, coins_rect)
 
-        # ---------- Карточки ----------
+        # обновляем карточки перед рисованием (для мигания)
         for card in self.tower_cards:
+            card.update()
             card.draw(self.screen)
 
-        # ---------- Кнопка "Назад" ----------
         self.back_button.draw(self.screen)
 
     def handle_event(self, event):
         """Обработка событий магазина."""
-        # Нажатие ESC возвращает в меню
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 return "back"
-        
-        # Клик по кнопке "Назад"
+
         if self.back_button.handle_event(event):
             return "back"
-        
-        # Обработка кликов по карточкам башен
+
         for card in self.tower_cards:
             res = card.handle_event(event)
             if res == "button":
                 return self.handle_card_button(card)
-        
-        return None
 
+        return None
 
     def handle_card_button(self, card: TowerCard):
         """Нажатие на кнопку на карточке."""
         tower_id = card.tower_id
 
         if not card.is_unlocked:
-            # Покупка
+            # сначала проверяем, хватает ли монет — без звука клика
             if self.save_manager.spend_coins(card.price):
+                # покупка успешна → можно сыграть звук клика покупки
+                if self.click_sound:
+                    self.click_sound.play()
                 self.save_manager.unlock_tower(tower_id)
                 self.save_manager.set_selected_tower(tower_id)
                 self.create_tower_cards()
                 return "purchased"
             else:
+                # монет не хватает → ТОЛЬКО ошибка + мигание красным
+                if self.error_sound:
+                    self.error_sound.play()
+                card.trigger_error_flash()
                 return "not_enough_coins"
         else:
-            # Выбор
+            # выбор уже купленной башни: нормальный клик
+            if self.click_sound:
+                self.click_sound.play()
             self.save_manager.set_selected_tower(tower_id)
             self.create_tower_cards()
             return "selected"
@@ -164,4 +166,6 @@ class Shop:
         """Обновить состояние карточек (после покупки/выбора)."""
         for card in self.tower_cards:
             card.is_unlocked = self.save_manager.is_tower_unlocked(card.tower_id)
-            card.is_selected = self.save_manager.get_selected_tower() == card.tower_id
+            card.is_selected = (
+                self.save_manager.get_selected_tower() == card.tower_id
+            )

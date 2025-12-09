@@ -1,4 +1,5 @@
 import pygame
+
 from src.constants import (
     ASSETS_PATH,
     TOWERS_PATH,
@@ -19,7 +20,6 @@ class AssetLoader:
         return icon
 
     # ---------- ФОНЫ ----------
-
     def load_backgrounds(self):
         """Загрузка 2 фоновых картинок для меню/магазина."""
         backgrounds = []
@@ -33,23 +33,23 @@ class AssetLoader:
         return backgrounds
 
     # ---------- ЗВУКИ ----------
-
     def load_sounds(self):
         sounds = {
             "build": pygame.mixer.Sound(f"{SFX_PATH}sfx_build.wav"),
             "gold": pygame.mixer.Sound(f"{SFX_PATH}sfx_gold.wav"),
             "fall": pygame.mixer.Sound(f"{SFX_PATH}sfx_fall.wav"),
             "over": pygame.mixer.Sound(f"{SFX_PATH}sfx_over.wav"),
+            "click": pygame.mixer.Sound(f"{SFX_PATH}sfx_click.mp3"),
+            "error": pygame.mixer.Sound(f"{SFX_PATH}sfx_error.mp3"),
         }
         return sounds
 
     # ---------- СПРАЙТЫ БАШЕН ----------
-
     def load_tower_sprites(self, tower_id):
         """
         Загружает спрайты одной башни по её id.
         Исходный спрайт 96x48, полезная текстура ~72x48 (по 12px слева/справа пустота),
-        вырезаем 72x48 и растягиваем в блок 63x63.
+        вырезаем 72x48 и растягиваем в блок 72x72.
         """
         base_path = f"{TOWERS_PATH}tower_{tower_id}/"
 
@@ -57,7 +57,6 @@ class AssetLoader:
             # полезная часть 72x48 в центре 96x48: от x = 12 до x = 84
             src_rect = pygame.Rect(12, 0, 72, 48)
             cropped = img.subsurface(src_rect).copy()
-
             # растягиваем в размер блока 72x72
             scaled = pygame.transform.smoothscale(
                 cropped, (BLOCK_WIDTH, BLOCK_HEIGHT)

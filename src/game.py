@@ -8,6 +8,43 @@ from src.constants import *
 from src.balloon_guy import BalloonGuy
 
 
+class ImageButton:
+    """Кнопка с картинкой и фоном как в настройках."""
+    def __init__(self, x, y, image_path, size=(60, 60), click_sound=None):
+        raw_image = pygame.image.load(image_path).convert_alpha()
+        # уменьшаем спрайт на 2px по длине и ширине
+        sprite_size = (size[0] - 2, size[1] - 2)
+        self.image = pygame.transform.smoothscale(raw_image, sprite_size)
+        self.size = size
+        self.rect = pygame.Rect(x - size[0] // 2, y - size[1] // 2, size[0], size[1])
+        self.is_hovered = False
+        self.click_sound = click_sound
+
+    def draw(self, screen):
+        base_color = (180, 200, 230)
+        border_color = (20, 20, 20)
+        # затемняем цвет при наведении
+        if self.is_hovered:
+            base_color = (140, 160, 190)
+        # фон кнопки
+        pygame.draw.rect(screen, base_color, self.rect, border_radius=8)
+        pygame.draw.rect(screen, border_color, self.rect, 2, border_radius=8)
+        # центрируем картинку (она на 2px меньше)
+        img_x = self.rect.x + 1
+        img_y = self.rect.y + 1
+        screen.blit(self.image, (img_x, img_y))
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEMOTION:
+            self.is_hovered = self.rect.collidepoint(event.pos)
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.rect.collidepoint(event.pos):
+                if self.click_sound:
+                    self.click_sound.play()
+                return True
+        return False
+
+
 class Game:
     def __init__(self, screen, save_manager, asset_loader, sound_muted=False):
         self.screen = screen
@@ -46,6 +83,7 @@ class Game:
         self.force = INITIAL_FORCE
         self.coins_earned = 0
 
+        # параметры анимации скролла фона (старая рабочая система)
         self.bg_anim_active = False
         self.bg_anim_progress = 0
         self.bg_anim_target_y = 0
@@ -56,10 +94,13 @@ class Game:
         self.mini_font = pygame.font.Font("freesansbold.ttf", 16)
         self.reason_font = pygame.font.Font("freesansbold.ttf", 24)
         self.coins_font = pygame.font.Font("freesansbold.ttf", 24)
+        self.hint_font = pygame.font.Font("freesansbold.ttf", 18)
 
         # шрифты для подсказок
         self.hint_title_font = pygame.font.Font("freesansbold.ttf", 40)
         self.hint_text_font = pygame.font.Font("freesansbold.ttf", 28)
+        self.confirm_font = pygame.font.Font("freesansbold.ttf", 24)
+        self.confirm_small_font = pygame.font.Font("freesansbold.ttf", 18)
 
         self.BLINK_EVENT = pygame.USEREVENT + 1
         pygame.time.set_timer(self.BLINK_EVENT, 800)
@@ -70,13 +111,27 @@ class Game:
         # подсказка в начале игры
         self.show_start_hint = True
 
+        # окно подтверждения выхода
+        self.show_exit_confirm = False
+
         # человечки начинают лететь только после первого скролла фона
         self.people_enabled = False
+
+        # кнопки для game over экрана (размер 60×60, опущены ниже текста)
+        cx = SCREEN_WIDTH // 2
+        btn_y = 430
+        spacing = 100
+        click_sound = self.sounds['click']
+        self.btn_back = ImageButton(cx - spacing, btn_y, f"{UI_PATH}arrow_back.png", size=(60, 60), click_sound=click_sound)
+        self.btn_shop = ImageButton(cx, btn_y, f"{UI_PATH}store.png", size=(60, 60), click_sound=click_sound)
+        self.btn_restart = ImageButton(cx + spacing, btn_y, f"{UI_PATH}restart.png", size=(60, 60), click_sound=click_sound)
+
+        # кнопка рестарт в правом верхнем углу во время игры (опущена на 5px с 30 до 35)
+        self.btn_restart_game = ImageButton(SCREEN_WIDTH - 40, 35, f"{UI_PATH}restart.png", size=(50, 50), click_sound=click_sound)
 
     def _create_balloon_guys(self):
         xs = [80, 180, 300, 420]
         speed_y = -1.2
-
         # порядок вылета: 0, 2, 1, 3
         order = [0, 2, 1, 3]
 
@@ -145,6 +200,9 @@ class Game:
         self.screen.blit(rot_rope_hook, rope_hook_rect)
 
         self.show_score()
+        # кнопка рестарт в правом верхнем углу
+        self.btn_restart_game.draw(self.screen)
+        
         self.tower.wobble()
 
         if self.tower.get_display():
@@ -154,6 +212,9 @@ class Game:
         # подсказка в начале игры
         if self.show_start_hint:
             self.draw_start_hint()
+
+        if self.show_exit_confirm:
+            self.draw_exit_confirm()
 
     def draw_start_hint(self):
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -173,13 +234,62 @@ class Game:
         self.screen.blit(line1, line1_rect)
         self.screen.blit(line2, line2_rect)
 
+    def draw_exit_confirm(self):
+        """Окно подтверждения выхода во время игры."""
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 150))
+        self.screen.blit(overlay, (0, 0))
+
+        panel_width = 450
+        panel_height = 220
+        cx = SCREEN_WIDTH // 2
+        cy = SCREEN_HEIGHT // 2
+        panel_rect = pygame.Rect(cx - panel_width // 2, cy - panel_height // 2, panel_width, panel_height)
+        base_color = (180, 200, 230)
+        border_color = (20, 20, 20)
+
+        pygame.draw.rect(self.screen, base_color, panel_rect, border_radius=16)
+        pygame.draw.rect(self.screen, border_color, panel_rect, 3, border_radius=16)
+
+        # многострочный текст
+        title1 = self.confirm_font.render("Вы уверены что", True, BLACK)
+        title2 = self.confirm_font.render("хотите выйти?", True, BLACK)
+        line1 = self.confirm_small_font.render("ENTER - подтвердить", True, BLACK)
+        line2 = self.confirm_small_font.render("ESC - отменить", True, BLACK)
+
+        title1_rect = title1.get_rect(center=(cx, cy - 50))
+        title2_rect = title2.get_rect(center=(cx, cy - 20))
+        line1_rect = line1.get_rect(center=(cx, cy + 30))
+        line2_rect = line2.get_rect(center=(cx, cy + 60))
+
+        self.screen.blit(title1, title1_rect)
+        self.screen.blit(title2, title2_rect)
+        self.screen.blit(line1, line1_rect)
+        self.screen.blit(line2, line2_rect)
+
     def handle_game_events(self, event):
+        if self.show_exit_confirm:
+            # обработка окна подтверждения выхода
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    return 'confirm_exit'
+                elif event.key == pygame.K_ESCAPE:
+                    self.show_exit_confirm = False
+                    return None
+
+        # кнопка рестарт в игре
+        if self.btn_restart_game.handle_event(event):
+            return 'restart_game'
+
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE:
+            if event.key == pygame.K_ESCAPE:
+                self.show_exit_confirm = True
+            elif event.key == pygame.K_SPACE:
                 if self.show_start_hint:
                     self.show_start_hint = False
                 if self.block.get_state() == "ready":
                     self.block.drop(self.tower)
+        return None
 
     def update(self):
         state = self.block.get_state()
@@ -241,6 +351,7 @@ class Game:
             else:
                 self.block.respawn(self.tower)
 
+        # СТАРАЯ РАБОЧАЯ ЛОГИКА СКРОЛЛА ФОНА
         if self.bg_anim_active:
             self.bg_anim_progress += 1
             progress_ratio = self.bg_anim_progress / BG_SCROLL_DURATION
@@ -312,9 +423,11 @@ class Game:
         self.misses = 0
         self.score = 0
 
+        # сброс фона (старая система)
         self.bg_y = SCREEN_HEIGHT - self.bg_big.get_height()
         self.bg_anim_active = False
         self.bg_anim_progress = 0
+
         self.force = INITIAL_FORCE
 
         self.game_over = False
@@ -322,6 +435,7 @@ class Game:
         self.coins_earned = 0
 
         self.show_start_hint = True
+        self.show_exit_confirm = False
         self.people_enabled = False
 
     def draw_game_over_screen(self):
@@ -340,17 +454,9 @@ class Game:
         coins_str = f"+{self.coins_earned} монет"
         coins_text = self.coins_font.render(coins_str, True, BLACK)
 
-        button_text = self.mini_font.render("НАЖМИТЕ ЛЮБУЮ КНОПКУ", True, BLACK)
-        blank_rect = button_text.get_rect()
-        blank = pygame.Surface((blank_rect.size), pygame.SRCALPHA).convert_alpha()
-
-        # переключение мигания по времени
-        instructions = [button_text, blank]
-        index = (pygame.time.get_ticks() // 800) % 2
-
         cx = SCREEN_WIDTH // 2
         panel_width = SCREEN_WIDTH - 80
-        panel_height = 260
+        panel_height = 380
         base_color = (180, 200, 230)
         border_color = (20, 20, 20)
 
@@ -363,11 +469,11 @@ class Game:
         pygame.draw.rect(self.screen, base_color, panel_rect, border_radius=16)
         pygame.draw.rect(self.screen, border_color, panel_rect, 3, border_radius=16)
 
-        y = panel_rect.top + 55
+        y = panel_rect.top + 40
         title_rect = title.get_rect(center=(cx, y))
         self.screen.blit(title, title_rect)
 
-        y += 50
+        y += 60
         score_rect = score_text.get_rect(center=(cx, y))
         self.screen.blit(score_text, score_rect)
 
@@ -379,12 +485,35 @@ class Game:
         coins_rect = coins_text.get_rect(center=(cx, y))
         self.screen.blit(coins_text, coins_rect)
 
-        y += 40
-        instr_rect = instructions[index].get_rect(center=(cx, y))
-        self.screen.blit(instructions[index], instr_rect)
+        # кнопки внутри панели
+        self.btn_back.draw(self.screen)
+        self.btn_shop.draw(self.screen)
+        self.btn_restart.draw(self.screen)
+
+        # подсказки под кнопками
+        hint_y = 500
+        hint1 = self.hint_font.render("ESC", True, BLACK)
+        hint2 = self.hint_font.render("S", True, BLACK)
+        hint3 = self.hint_font.render("R", True, BLACK)
+        btn_spacing = 100
+        self.screen.blit(hint1, hint1.get_rect(center=(cx - btn_spacing, hint_y)))
+        self.screen.blit(hint2, hint2.get_rect(center=(cx, hint_y)))
+        self.screen.blit(hint3, hint3.get_rect(center=(cx + btn_spacing, hint_y)))
 
     def handle_game_over_input(self, event):
         """Обрабатывает нажатия на экране game over."""
-        if event.type == pygame.KEYUP:
+        if self.btn_back.handle_event(event):
             return 'menu'
+        if self.btn_shop.handle_event(event):
+            return 'shop'
+        if self.btn_restart.handle_event(event):
+            return 'restart'
+
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                return 'menu'
+            elif event.key == pygame.K_s:
+                return 'shop'
+            elif event.key == pygame.K_r:
+                return 'restart'
         return None
