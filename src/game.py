@@ -78,7 +78,13 @@ class Game:
         # 🎬 СЛОУ-МО СИСТЕМА
         self.slowmo_active = False
         self.slowmo_timer = 0
-        self.slowmo_intensity = 1.0  # 1.0 = нормально, 0.3 = медленно
+        self.slowmo_intensity = 1.0
+        
+        # 🎙️ СИСТЕМА ГОЛОСОВЫХ ФРАЗ
+        self.last_action_time = 0
+        self.blocks_placed = 0
+        self.milestone_cycle = 0
+        self.start_phrase_played = False
 
         self.score = 0
         self.misses = 0
@@ -159,37 +165,34 @@ class Game:
         misses_rect = misses_text.get_rect(center=(x_center, y))
         self.screen.blit(misses_text, misses_rect)
 
-        # 🎯 КОМБО ТЕКСТ С УРОВНЯМИ
+        # 🎯 ЭПИЧНЫЙ КОМБО ТЕКСТ
         if self.combo > 0 and self.combo_timer > 0:
             combo_mult = 1 + min(self.combo * 0.3, 2.5)
             
-            # БОЛЬШИЙ ШРИФТ ДЛЯ КОМБО
-            combo_font = pygame.font.Font("freesansbold.ttf", 48)  # БЫЛО 32!
+            combo_font = pygame.font.Font("freesansbold.ttf", 48)
             
-            if self.combo >= COMBO_TIER_3:  # 6+
+            if self.combo >= COMBO_TIER_3:
                 combo_color = (255, 50, 255)
                 combo_text = f"⚡ MEGA x{combo_mult:.1f}! ⚡"
-            elif self.combo >= COMBO_TIER_2:  # 4-5
+            elif self.combo >= COMBO_TIER_2:
                 combo_color = (255, 100, 0)
                 combo_text = f"🔥 SUPER x{combo_mult:.1f}! 🔥"
-            elif self.combo >= COMBO_TIER_1:  # 2-3
+            elif self.combo >= COMBO_TIER_1:
                 combo_color = (255, 215, 0)
                 combo_text = f"✨ COMBO x{combo_mult:.1f}! ✨"
             else:
                 combo_color = (255, 215, 0)
                 combo_text = f"COMBO x{combo_mult:.1f}!"
             
-            # 🖤 ЧЕРНАЯ ОБВОДКА (3px)
+            # 🖤 ЧЕРНАЯ ОБВОДКА
             outline_surf = combo_font.render(combo_text, True, BLACK)
-            outline_rect = outline_surf.get_rect(center=(SCREEN_WIDTH // 2, 120))  # +20px НИЖЕ!
+            outline_rect = outline_surf.get_rect(center=(SCREEN_WIDTH // 2, 120))
             
-            # РИСУЕМ ОБВОДКУ (несколько слоев для толщины)
             for dx in [-2, 0, 2]:
                 for dy in [-2, 0, 2]:
                     if dx != 0 or dy != 0:
                         self.screen.blit(outline_surf, (outline_rect.x + dx, outline_rect.y + dy))
             
-            # ✅ ОСНОВНОЙ ТЕКСТ СВЕРХУ
             combo_surf = combo_font.render(combo_text, True, combo_color)
             combo_rect = combo_surf.get_rect(center=(SCREEN_WIDTH // 2, 120))
             self.screen.blit(combo_surf, combo_rect)
@@ -197,13 +200,12 @@ class Game:
         # 🎬 СЛОУ-МО ИНДИКАТОР
         if self.slowmo_active:
             slowmo_text = self.miss_font.render("⏰ SLOW-MOTION", True, (100, 200, 255))
-            slowmo_rect = slowmo_text.get_rect(center=(SCREEN_WIDTH // 2, 100))
+            slowmo_rect = slowmo_text.get_rect(center=(SCREEN_WIDTH // 2, 160))
             self.screen.blit(slowmo_text, slowmo_rect)
 
     def draw_background(self):
         self.screen.blit(self.bg_big, (0, self.bg_y))
         
-        # 🎬 ЗАТЕМНЕНИЕ ПРИ СЛОУ-МО
         if self.slowmo_active:
             overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
             alpha = int(30 * (1.0 - self.slowmo_intensity))
@@ -213,8 +215,6 @@ class Game:
     def draw(self):
         self.draw_background()
         self.screen.blit(self.crane_image, (0, 0))
-
-        # Частицы с учетом слоу-мо
         self.particles.draw(self.screen)
 
         if self.people_enabled:
@@ -313,6 +313,12 @@ class Game:
             elif event.key == pygame.K_SPACE:
                 if self.show_start_hint:
                     self.show_start_hint = False
+                    
+                    # 🎙️ START при первом нажатии
+                    if not self.start_phrase_played and not self.sound_muted:
+                        self.sounds['start'].play()
+                        self.start_phrase_played = True
+                    
                 if self.block.get_state() == "ready":
                     self.block.drop(self.tower)
         return None
@@ -322,7 +328,6 @@ class Game:
         self.slowmo_active = True
         self.slowmo_timer = duration
         self.slowmo_intensity = factor
-        print(f"🎬 SLOWMO ACTIVATED! Duration={duration}, Factor={factor}")
 
     def update(self):
         # 🎬 ОБНОВЛЕНИЕ СЛОУ-МО
@@ -332,13 +337,21 @@ class Game:
                 self.slowmo_active = False
                 self.slowmo_intensity = 1.0
         
-        # Применяем слоу-мо ко всем системам
         time_scale = self.slowmo_intensity if self.slowmo_active else 1.0
+        
+        # 🎙️ ТАЙМЕР БЕЗДЕЙСТВИЯ (4 секунды)
+        if self.block.get_state() == "ready":
+            if self.last_action_time == 0:
+                self.last_action_time = pygame.time.get_ticks()
+            
+            if pygame.time.get_ticks() - self.last_action_time > 4000:
+                if not self.sound_muted:
+                    self.sounds['go'].play()
+                self.last_action_time = pygame.time.get_ticks()
         
         state = self.block.get_state()
 
         if state == "ready":
-            # 🚀 КОМБО УСКОРЕНИЕ
             combo_speed_boost = 1.0
             if self.combo >= COMBO_TIER_3:
                 combo_speed_boost = 2.5
@@ -354,27 +367,33 @@ class Game:
             self.block.drop(self.tower)
 
         elif state == "landed":
+            # 🎙️ СБРОС ТАЙМЕРА
+            self.last_action_time = pygame.time.get_ticks()
+            
             if self.block.to_build(self.tower):
                 self.tower.build(self.block)
                 self.force *= 1.015
+                
+                # 🎙️ СЧЁТЧИК БЛОКОВ
+                self.blocks_placed += 1
 
                 block_screen_x = self.tower.xlist[-1] + BLOCK_WIDTH // 2 + self.tower.x + self.tower.change
                 block_screen_y = self.tower.y + BLOCK_HEIGHT * (self.tower.size - 1) - BLOCK_HEIGHT // 2
 
                 if self.tower.is_golden():
+                    # 🎙️ PERFECT при золотом
                     if not self.sound_muted:
+                        self.sounds['perfect'].play()
                         self.sounds['gold'].play()
                     
-                    # 🔥 ВЗРЫВ + КОМБО
                     self.particles.add_explosion(block_screen_x, block_screen_y, count=50)
                     
                     self.combo += 1
                     self.combo_timer = 180
                     score_mult = 1 + min(self.combo * 0.3, 2.5)
                     
-                    # 🎬 СЛОУ-МО ПРИ ВЫСОКОМ КОМБО
                     if self.combo >= COMBO_TIER_3:
-                        self.activate_slowmo(duration=45, factor=0.25)  # Супер медленно
+                        self.activate_slowmo(duration=45, factor=0.25)
                     elif self.combo >= COMBO_TIER_2:
                         self.activate_slowmo(duration=30, factor=0.3)
                     
@@ -382,7 +401,8 @@ class Game:
                     self.save_manager.add_coins(int(10 * score_mult))
                     self.coins_earned += int(10 * score_mult)
                     
-                    print(f"🟡 GOLD COMBO #{self.combo} x{score_mult:.1f}!")
+                    # 🎙️ ВЕХИ
+                    self._play_milestone_phrase(is_golden=True)
                 else:
                     self.particles.add_build_particles(block_screen_x, block_screen_y, count=30)
                     self.combo = 0
@@ -392,6 +412,9 @@ class Game:
                     self.score += 1
                     self.save_manager.add_coins(5)
                     self.coins_earned += 5
+                    
+                    # 🎙️ ВЕХИ
+                    self._play_milestone_phrase(is_golden=False)
 
             if self.tower.size >= 2:
                 self.block.collapse(self.tower)
@@ -413,9 +436,18 @@ class Game:
             if self.tower.size >= 5:
                 self.tower.reset()
 
+            # 🎙️ NICE TRY
         elif state == "miss":
             self.misses += 1
+            self.last_action_time = pygame.time.get_ticks()
+            # 🎯 ПРОВЕРКА РЕКОРДА ПЕРЕД NICE_TRY
+            old_high_score = self.save_manager.get_high_score()
+            is_new_record = self.score > old_high_score
+            
+            # 🎙️ NICE TRY (только если НЕ новый рекорд)
             if not self.sound_muted:
+                if not is_new_record:
+                    self.sounds['nice_try'].play()
                 self.sounds['fall'].play()
 
             if self.misses >= MAX_MISSES:
@@ -424,7 +456,6 @@ class Game:
             else:
                 self.block.respawn(self.tower)
 
-        # Скролл фона
         if self.bg_anim_active:
             self.bg_anim_progress += 1
             progress_ratio = self.bg_anim_progress / BG_SCROLL_DURATION
@@ -459,7 +490,6 @@ class Game:
         if self.people_enabled:
             self.balloon_guys.update()
 
-        # 🎬 ЧАСТИЦЫ С СЛОУ-МО
         for _ in range(int(1 * time_scale)):
             self.particles.update()
         
@@ -467,6 +497,31 @@ class Game:
             self.combo_timer -= 1
 
         self.check_game_over()
+
+    def _play_milestone_phrase(self, is_golden=False):
+        """🎙️ Фразы по вехам (пропускаются если золотой блок)"""
+        if self.sound_muted:
+            return
+        
+        # 🎯 ПРИОРИТЕТ: если золотой блок - не играем фразы вех
+        if is_golden:
+            return
+        
+        blocks = self.blocks_placed
+        
+        if blocks == 5:
+            self.sounds['good_job'].play()
+        elif blocks == 10:
+            self.sounds['amazing'].play()
+        elif blocks == 20:
+            self.sounds['fantastic'].play()
+        elif blocks > 20:
+            if (blocks - 20) % 5 == 0:
+                cycle_phrases = ['good_job', 'amazing', 'fantastic']
+                phrase = cycle_phrases[self.milestone_cycle % 3]
+                self.sounds[phrase].play()
+                self.milestone_cycle += 1
+
 
     def check_game_over(self):
         width = self.tower.get_width()
@@ -488,7 +543,14 @@ class Game:
 
     def end_game(self):
         self.game_over = True
+        
+        # 🎙️ TOP SCORE
+        old_high_score = self.save_manager.get_high_score()
         self.save_manager.update_high_score(self.score)
+        
+        if self.score > old_high_score and not self.sound_muted:
+            self.sounds['top_score'].play()
+        
         self.show_start_hint = False
 
     def reset(self):
@@ -504,6 +566,12 @@ class Game:
         self.slowmo_active = False
         self.slowmo_timer = 0
         self.slowmo_intensity = 1.0
+        
+        # 🎙️ СБРОС
+        self.last_action_time = 0
+        self.blocks_placed = 0
+        self.milestone_cycle = 0
+        self.start_phrase_played = False
 
         self.misses = 0
         self.score = 0

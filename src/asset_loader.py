@@ -1,4 +1,6 @@
+import os
 import pygame
+from pygame import mixer
 
 from src.constants import (
     ASSETS_PATH,
@@ -34,14 +36,44 @@ class AssetLoader:
 
     # ---------- ЗВУКИ ----------
     def load_sounds(self):
-        sounds = {
-            "build": pygame.mixer.Sound(f"{SFX_PATH}sfx_build.wav"),
-            "gold": pygame.mixer.Sound(f"{SFX_PATH}sfx_gold.wav"),
-            "fall": pygame.mixer.Sound(f"{SFX_PATH}sfx_fall.wav"),
-            "over": pygame.mixer.Sound(f"{SFX_PATH}sfx_over.wav"),
-            "click": pygame.mixer.Sound(f"{SFX_PATH}sfx_click.mp3"),
-            "error": pygame.mixer.Sound(f"{SFX_PATH}sfx_error.mp3"),
+        """Загружает все звуки игры."""
+        sounds = {}
+        sound_files = {
+            'build': 'sfx_build.wav',
+            'fall': 'sfx_fall.wav',
+            'over': 'sfx_over.wav',
+            'gold': 'sfx_gold.wav',
+            'click': 'sfx_click.mp3',
+            'error': 'sfx_error.mp3',
+            'coin': 'sfx_coin.mp3',
         }
+        
+        # 🎙️ ГОЛОСОВЫЕ ФРАЗЫ
+        phrase_files = {
+            'start': 'start.mp3',
+            'go': 'go.mp3',
+            'good_job': 'good_job.mp3',
+            'amazing': 'amazing.mp3',
+            'fantastic': 'fantastic.mp3',
+            'nice_try': 'nice_try.mp3',
+            'top_score': 'top_score.mp3',
+            'perfect': 'perfect.mp3'
+        }
+
+        # Загрузка обычных звуков из SFX_PATH
+        for name, file in sound_files.items():
+            try:
+                sounds[name] = mixer.Sound(f"{SFX_PATH}{file}")
+            except pygame.error as e:
+                print(f"❌ Не удалось загрузить звук {file}: {e}")
+        
+        # 🎙️ ЗАГРУЗКА ФРАЗ из assets/phrases/
+        for name, file in phrase_files.items():
+            try:
+                sounds[name] = mixer.Sound(f"{ASSETS_PATH}phrases/{file}")
+            except pygame.error as e:
+                print(f"❌ Не удалось загрузить фразу {file}: {e}")
+
         return sounds
 
     # ---------- СПРАЙТЫ БАШЕН ----------
