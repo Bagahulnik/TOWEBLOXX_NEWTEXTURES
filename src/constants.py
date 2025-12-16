@@ -32,8 +32,11 @@ FORCE_ACCELERATION = 1.015  # +1.5% за блок (можно 1.01-1.03)
 COLLAPSE_THRESHOLD = 0.5
 
 # -------- Шатание башни --------
-WOBBLE_SPEED = 0.5
-WOBBLE_LIMIT = 10
+WOBBLE_SPEED = 0.7
+WOBBLE_LIMIT = 18
+WOBBLE_GROWTH_PER_BLOCK = 0.6  # насколько растёт амплитуда за 1 блок
+WOBBLE_MAX_LIMIT = 90          # жёсткий максимум, чтобы не улетало
+
 
 # -------- Ограничения --------
 MAX_MISSES = 3

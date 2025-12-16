@@ -1,10 +1,12 @@
 import pygame
+
 from src.constants import *
 
 
 class Tower(pygame.sprite.Sprite):
     def __init__(self, tower_sprites):
         pygame.sprite.Sprite.__init__(self)
+
         self.tower_sprites = tower_sprites
 
         self.size = 0
@@ -14,6 +16,7 @@ class Tower(pygame.sprite.Sprite):
         self.xbase = 0
         self.y = SCREEN_HEIGHT
         self.x = 0
+
         self.height = 0
 
         self.xlist = []
@@ -21,9 +24,12 @@ class Tower(pygame.sprite.Sprite):
         self.golden_list = []
 
         self.onscreen = 0
+
+        # смещение башни для качания
         self.change = 0
         self.speed = WOBBLE_SPEED
         self.wobbling = False
+
         self.scrolling = False
         self.golden = False
         self.redraw = False
@@ -61,6 +67,11 @@ class Tower(pygame.sprite.Sprite):
         self.height = self.size * BLOCK_HEIGHT
         base_y = SCREEN_HEIGHT - BLOCK_HEIGHT
         self.y = base_y - (self.height - BLOCK_HEIGHT)
+        
+        # ИСПРАВЛЕНИЕ: сбрасываем смещение качания при добавлении блока
+        # чтобы избежать визуального дёргания
+        self.change = 0
+
 
     def get_width(self):
         width = BLOCK_WIDTH
@@ -84,7 +95,6 @@ class Tower(pygame.sprite.Sprite):
 
             for i in range(len(buildlist)):
                 sprite_type, sprite_index = spritelist[i]
-
                 if sprite_type == 'bot':
                     block_img = self.tower_sprites['bot']
                 else:
@@ -100,9 +110,11 @@ class Tower(pygame.sprite.Sprite):
 
     def unbuild(self, block):
         self.display_status = False
+
         if self.y > block.y:
             block.y = self.y
-            self.size -= 1
+
+        self.size -= 1
 
         surf = pygame.Surface((800, (self.onscreen - 1) * BLOCK_HEIGHT), pygame.SRCALPHA)
         surf = surf.convert_alpha()
@@ -112,7 +124,6 @@ class Tower(pygame.sprite.Sprite):
 
         for i in range(len(buildlist)):
             sprite_type, sprite_index = spritelist[i]
-
             if sprite_type == 'bot':
                 block_img = self.tower_sprites['bot']
             else:
@@ -125,6 +136,7 @@ class Tower(pygame.sprite.Sprite):
         return surf
 
     def collapse(self, direction):
+        # сейчас не используется, оставлен на будущее
         self.y += 5
         if direction == "l":
             self.x -= 5
@@ -132,17 +144,49 @@ class Tower(pygame.sprite.Sprite):
             self.x += 5
 
     def wobble(self):
+        """Качание башни вокруг текущего X.
+
+        Амплитуда зависит от высоты башни и кривизны,
+        а скорость качания растёт с количеством блоков.
+        """
         width = self.get_width()
-        if ((width > 100 or width < -100) and self.size >= 5) or self.size >= 20:
+
+        # как только башня стала достаточно высокой, включаем качание навсегда
+        if self.size >= 3:
             self.wobbling = True
 
         if self.wobbling:
+            # -------- СКОРОСТЬ В ЗАВИСИМОСТИ ОТ ВЫСОТЫ --------
+            base_speed = WOBBLE_SPEED
+
+            extra_speed = 0.0
+            if self.size > 15:
+                extra_steps = (self.size - 15) // 10
+                extra_speed = 0.1 * (1 + extra_steps)
+            current_speed = base_speed + extra_speed
+
+            # -------- АМПЛИТУДА КАЧАНИЯ --------
+            base_limit = WOBBLE_LIMIT + self.size * WOBBLE_GROWTH_PER_BLOCK
+
+            wobble_bonus = 0
+            abs_width = abs(width)
+
+            if abs_width > 120:
+                norm = min((abs_width - 120) / 80, 1.0)
+                wobble_bonus = base_limit * (0.3 + 0.4 * norm)
+
+            dynamic_limit = base_limit + wobble_bonus
+            if dynamic_limit > WOBBLE_MAX_LIMIT:
+                dynamic_limit = WOBBLE_MAX_LIMIT
+
+            # -------- ДВИЖЕНИЕ ТУДА-СЮДА --------
             self.change += self.speed
 
-        if self.change > WOBBLE_LIMIT:
-            self.speed = -WOBBLE_SPEED
-        elif self.change < -WOBBLE_LIMIT:
-            self.speed = WOBBLE_SPEED
+            if self.change > dynamic_limit:
+                self.speed = -abs(current_speed)
+            elif self.change < -dynamic_limit:
+                self.speed = abs(current_speed)
+
 
     def display(self, screen, scroll_y=0):
         surf = self.draw()
@@ -155,3 +199,6 @@ class Tower(pygame.sprite.Sprite):
 
     def reset(self):
         self.redraw = True
+        self.change = 0
+        self.speed = WOBBLE_SPEED
+        self.wobbling = False

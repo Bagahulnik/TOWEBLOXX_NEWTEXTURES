@@ -1,10 +1,11 @@
 {
-    "coins": 31,
-    "high_score": 15,
+    "coins": 3449,
+    "high_score": 56,
     "unlocked_towers": [
         1,
-        2
+        2,
+        4
     ],
-    "selected_tower": 2,
+    "selected_tower": 4,
     "total_games": 0
 }

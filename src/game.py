@@ -524,22 +524,18 @@ class Game:
 
 
     def check_game_over(self):
+        """Теперь конец игры только по промахам, башня не рушится по ширине."""
         width = self.tower.get_width()
 
-        if width < -140:
-            self.tower.collapse("l")
-            if not self.game_over_reason:
-                if not self.sound_muted:
-                    self.sounds['over'].play()
-                self.game_over_reason = "collapse"
-                self.end_game()
-        elif width > 140:
-            self.tower.collapse("r")
-            if not self.game_over_reason:
-                if not self.sound_muted:
-                    self.sounds['over'].play()
-                self.game_over_reason = "collapse"
-                self.end_game()
+        # Можно использовать ширину только для логики, но НЕ для конца игры.
+        # Например, если очень широко — просто гарантированно включить качание:
+        if abs(width) > 140 and self.tower.size >= 5:
+            self.tower.wobbling = True
+
+        # ВАЖНО: никаких collapse(), никаких game_over_reason тут.
+        # Завершение игры происходит только в логике промахов (state == "miss")
+        # и через self.end_game(), как уже сделано выше в update().
+
 
     def end_game(self):
         self.game_over = True

@@ -4,12 +4,11 @@ from pygame import mixer
 
 from src.game import Game
 from src.shop import Shop
-from src.particles import ParticleSystem 
+from src.particles import ParticleSystem
 from src.ui import MainMenu, SettingsMenu
 from src.save_manager import SaveManager
 from src.asset_loader import AssetLoader
 from src.constants import SCREEN_WIDTH, SCREEN_HEIGHT, FPS, WHITE, MUSIC_PATH
-
 
 
 def main():
@@ -17,72 +16,75 @@ def main():
     pygame.mixer.pre_init(44100, 16, 2, 4096)
     pygame.mixer.init()
 
-
+    # ✅ ВИРТУАЛЬНЫЙ ЭКРАН (ЛОГИКА ИГРЫ)
     VIRTUAL_WIDTH = SCREEN_WIDTH
     VIRTUAL_HEIGHT = SCREEN_HEIGHT
     virtual_screen = pygame.Surface((VIRTUAL_WIDTH, VIRTUAL_HEIGHT))
 
-
-    WINDOW_WIDTH = 480
-    WINDOW_HEIGHT = 853
+    # ✅ ОПРЕДЕЛЕНИЕ РАЗМЕРА МОНИТОРА
+    display_info = pygame.display.Info()
+    monitor_width = display_info.current_w
+    monitor_height = display_info.current_h
+    
+    # ✅ ОТСТУПЫ ОТ КРАЁВ МОНИТОРА (для панели задач и рамок)
+    MARGIN = 80  # отступ 80px сверху/снизу для панели задач
+    
+    # ✅ МАКСИМАЛЬНО ДОСТУПНАЯ ВЫСОТА
+    max_available_height = monitor_height - MARGIN
+    
+    # ✅ РАСЧЁТ РАЗМЕРА ОКНА С СОХРАНЕНИЕМ ПРОПОРЦИЙ 9:16
+    aspect_ratio = VIRTUAL_WIDTH / VIRTUAL_HEIGHT  # 540/960 = 0.5625 (9:16)
+    
+    # Подбираем размер по высоте монитора
+    WINDOW_HEIGHT = min(max_available_height, 900)  # не больше 900px
+    WINDOW_WIDTH = int(WINDOW_HEIGHT * aspect_ratio)
+    
+    # ✅ СОЗДАНИЕ ОКНА
     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
     pygame.display.set_caption("Tower Bloxx")
-
 
     asset_loader = AssetLoader()
     icon = asset_loader.load_icon()
     pygame.display.set_icon(icon)
 
-
     backgrounds = asset_loader.load_backgrounds()
-
 
     sounds = asset_loader.load_sounds()
     click_sound = sounds["click"]
     error_sound = sounds["error"]
-    coin_sound = sounds["coin"]  # ✅ ДОБАВЛЕН ЗВУК МОНЕТЫ
-
+    coin_sound = sounds["coin"]
 
     current_track_index = 0
     pygame.mixer.music.load(f"{MUSIC_PATH}song_{current_track_index + 1}.mp3")
     pygame.mixer.music.play(-1)
 
-
     save_manager = SaveManager()
     clock = pygame.time.Clock()
-
 
     music_muted = False
     sfx_muted = False
 
-
     state = "menu"
     previous_state = None
-
 
     game = None
     shop = None
 
-
     main_menu = MainMenu(virtual_screen, click_sound=click_sound)
     settings_menu = SettingsMenu(virtual_screen, click_sound=click_sound)
 
-
     current_bg_index = 0
-
 
     running = True
 
-
     while running:
         clock.tick(FPS)
-
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
 
-
+            # ✅ ПЕРЕСЧЁТ КООРДИНАТ МЫШИ (виртуальный экран → реальное окно)
             if event.type in (
                 pygame.MOUSEMOTION,
                 pygame.MOUSEBUTTONDOWN,
@@ -94,7 +96,6 @@ def main():
                 event.pos = (virtual_x, virtual_y)
                 if hasattr(event, "dict"):
                     event.dict["pos"] = (virtual_x, virtual_y)
-
 
             if state == "menu":
                 action = main_menu.handle_event(event)
@@ -115,7 +116,7 @@ def main():
                         asset_loader,
                         click_sound=click_sound,
                         error_sound=error_sound,
-                        coin_sound=coin_sound,  # ✅ ПЕРЕДАЁМ ЗВУК МОНЕТЫ
+                        coin_sound=coin_sound,
                     )
                 elif action == "settings":
                     state = "settings"
@@ -125,7 +126,6 @@ def main():
                     settings_menu.music_index = current_track_index
                 elif action == "quit":
                     running = False
-
 
             elif state == "settings":
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
@@ -157,7 +157,6 @@ def main():
                         pygame.mixer.music.play(-1)
                         pygame.mixer.music.set_volume(0.0 if music_muted else 1.0)
 
-
             elif state == "game":
                 if game:
                     if not game.game_over:
@@ -186,7 +185,7 @@ def main():
                                 asset_loader,
                                 click_sound=click_sound,
                                 error_sound=error_sound,
-                                coin_sound=coin_sound,  # ✅ ПЕРЕДАЁМ ЗВУК МОНЕТЫ
+                                coin_sound=coin_sound,
                             )
                         elif result == "restart":
                             game = Game(
@@ -195,7 +194,6 @@ def main():
                                 asset_loader,
                                 sound_muted=sfx_muted,
                             )
-
 
             elif state == "shop":
                 if shop:
@@ -212,9 +210,7 @@ def main():
                             else:
                                 state = "menu"
 
-
         virtual_screen.fill(WHITE)
-
 
         if state == "menu":
             main_menu.draw(backgrounds[current_bg_index])
@@ -231,16 +227,14 @@ def main():
             if shop:
                 shop.draw(backgrounds[current_bg_index])
 
-
+        # ✅ МАСШТАБИРОВАНИЕ ВИРТУАЛЬНОГО ЭКРАНА НА РЕАЛЬНОЕ ОКНО
         scaled = pygame.transform.smoothscale(
             virtual_screen, (WINDOW_WIDTH, WINDOW_HEIGHT)
         )
         screen.blit(scaled, (0, 0))
         pygame.display.update()
 
-
     pygame.quit()
-
 
 
 if __name__ == "__main__":

@@ -2,7 +2,6 @@ import pygame
 from math import sin, cos
 from src.constants import *
 
-
 class Block(pygame.sprite.Sprite):
     def __init__(self, tower_sprites, origin=(ROPE_ORIGIN_X, ROPE_ORIGIN_Y), block_number=0):
         pygame.sprite.Sprite.__init__(self)
@@ -36,6 +35,7 @@ class Block(pygame.sprite.Sprite):
 
         self.state = "ready"
         self.angle = 45
+        self.collision_checked = False  # флаг проверки столкновения
 
     def set_sprite_for_block_number(self, block_number):
         self.block_number = block_number
@@ -81,12 +81,23 @@ class Block(pygame.sprite.Sprite):
             else:
                 target_y = tower.y - BLOCK_HEIGHT
 
-            if self.y >= target_y:
+            # Проверяем столкновение когда достигли или прошли target_y
+            if self.y >= target_y and not self.collision_checked:
+                self.collision_checked = True
+                
                 if tower.size == 0 or self.collided(tower):
+                    # Попал - фиксируем Y точно на уровне башни
+                    self.y = target_y
+                    self.speed = 0
                     self.state = "landed"
                 else:
-                    if self.y >= SCREEN_HEIGHT + 100:
-                        self.state = "miss"
+                    # Промах - продолжаем падать
+                    pass
+
+            # Окончательно переходим в miss только внизу экрана
+            if self.y >= SCREEN_HEIGHT + 100:
+                self.state = "miss"
+
 
     def get_state(self):
         return self.state
@@ -95,15 +106,41 @@ class Block(pygame.sprite.Sprite):
         if tower.size == 0:
             return False
 
-        half = BLOCK_WIDTH * 0.5
-        x_ok = (self.xlast < tower.xlist[-1] + half) and \
-               (self.xlast > tower.xlist[-1] - half)
+        base_x = tower.xlist[-1]
+        top_x = self.xlast
 
-        y_ok = (tower.y - self.y <= BLOCK_HEIGHT + 10)
+        base_left = base_x
+        base_right = base_x + BLOCK_WIDTH
+        top_left = top_x
+        top_right = top_x + BLOCK_WIDTH
 
-        if x_ok and y_ok:
-            if (self.xlast < tower.xlist[-1] + 5) and \
-               (self.xlast > tower.xlist[-1] - 5):
+        # длина перекрытия по X
+        overlap = min(base_right, top_right) - max(base_left, top_left)
+
+        # нет пересечения по X
+        if overlap <= 0:
+            tower.golden = False
+            return False
+
+        # проверяем смещение относительно ПРЕДЫДУЩЕГО блока
+        if tower.size >= 2:
+            prev_x = tower.xlist[-2]
+        else:
+            prev_x = tower.xbase
+        
+        offset = abs(self.xlast - prev_x)
+        max_offset = BLOCK_WIDTH * 0.5
+        
+        # если смещение слишком большое - промах
+        if offset >= max_offset:
+            tower.golden = False
+            return False
+
+        # проверяем перекрытие хотя бы 50%
+        if overlap >= BLOCK_WIDTH * 0.5:
+            center_base = (base_left + base_right) / 2
+            center_top = (top_left + top_right) / 2
+            if abs(center_top - center_base) <= 5:
                 tower.golden = True
             else:
                 tower.golden = False
@@ -113,8 +150,9 @@ class Block(pygame.sprite.Sprite):
             return False
 
     def to_build(self, tower):
-        self.state = "scroll"
-        if tower.size == 0 or self.collided(tower):
+        # строим только если блок реально приземлился
+        if self.state == "landed":
+            self.state = "scroll"
             return True
         return False
 
@@ -157,6 +195,7 @@ class Block(pygame.sprite.Sprite):
 
         self.speed = 0
         self.state = "ready"
+        self.collision_checked = False  # сбрасываем флаг
 
         hook_x = ROPE_ORIGIN_X + ROPE_LENGTH * sin(self.angle)
         hook_y = ROPE_ORIGIN_Y + ROPE_LENGTH * cos(self.angle)
