@@ -1,9 +1,18 @@
+"""
+Модуль ui.py - пользовательский интерфейс игры
+Содержит классы для создания кнопок, карточек башен,
+главного меню и меню настроек
+"""
 import pygame
 
 from src.constants import ASSETS_PATH, UI_PATH, SCREEN_WIDTH, SCREEN_HEIGHT, BLACK
 
 
 class Button:
+    """
+    Универсальный класс кнопки с поддержкой наведения и звука клика.
+    Используется во всех меню игры для интерактивных элементов.
+    """
     def __init__(
         self,
         x,
@@ -27,14 +36,20 @@ class Button:
         self.click_sound = click_sound
 
     def draw(self, screen):
+        """
+        Отрисовывает кнопку с тенью и текстом.
+        Меняет цвет в зависимости от состояния наведения.
+        """
+        # Выбираем цвет в зависимости от наведения курсора
         base_color = self.hover_color if self.is_hovered else self.color
 
         shadow_rect = self.rect.copy()
         shadow_rect.x += 3
         shadow_rect.y += 3
         pygame.draw.rect(screen, (0, 0, 0, 80), shadow_rect, border_radius=10)
-
+        # Рисуем основную кнопку со скругленными углами
         pygame.draw.rect(screen, base_color, self.rect, border_radius=10)
+        # Рисуем рамку кнопки
         pygame.draw.rect(screen, (20, 20, 20), self.rect, 2, border_radius=10)
 
         if self.text:
@@ -43,6 +58,11 @@ class Button:
             screen.blit(text_surf, text_rect)
 
     def handle_event(self, event):
+        """
+        Обрабатывает события мыши для кнопки.
+        Отслеживает наведение курсора и клики.
+        Возвращает True при успешном клике.
+        """
         if event.type == pygame.MOUSEMOTION:
             self.is_hovered = self.rect.collidepoint(event.pos)
 
@@ -56,6 +76,11 @@ class Button:
 
 
 class TowerCard:
+    """
+    Класс карточки башни в магазине.
+    Отображает информацию о башне, её стоимость и статус покупки.
+    Поддерживает визуальные эффекты (мигание при ошибке).
+    """
     def __init__(
         self,
         x,
@@ -80,7 +105,7 @@ class TowerCard:
 
         self.font = pygame.font.Font("freesansbold.ttf", 18)
         self.small_font = pygame.font.Font("freesansbold.ttf", 14)
-
+        # Кнопка покупки/выбора в нижней части карточки
         self.button_rect = pygame.Rect(
             self.rect.x + 20,
             self.rect.y + self.rect.height - 36,
@@ -98,13 +123,20 @@ class TowerCard:
         self.error_flash_timer = frames
 
     def update(self):
-        """Обновить состояние (уменьшаем таймер мигания)."""
+        """
+        Обновляет состояние карточки каждый кадр.
+        Уменьшает таймер мигания и отключает эффект при завершении.
+        """
         if self.error_flash:
             self.error_flash_timer -= 1
             if self.error_flash_timer <= 0:
                 self.error_flash = False
 
     def draw(self, screen):
+        """
+        Отрисовывает карточку башни со всеми элементами:
+        рамку, превью, название, цену и кнопку действия.
+        """
         base_color = (180, 200, 230)
         border_color = (20, 20, 20)
 
@@ -132,7 +164,7 @@ class TowerCard:
             center=(self.rect.centerx, self.rect.y + 105)
         )
         screen.blit(name_surf, name_rect)
-
+        # Отображаем цену только для незакупленных башен
         if not self.is_unlocked:
             price_surf = self.small_font.render(
                 f"{self.price} монет", True, BLACK
@@ -160,19 +192,25 @@ class TowerCard:
         screen.blit(btn_surf, btn_rect)
 
     def handle_event(self, event):
+        """
+        Обрабатывает клики по кнопке карточки.
+        Возвращает "button" при клике на кнопку покупки/выбора.
+        """
         if event.type == pygame.MOUSEMOTION:
             self.is_hovered = self.rect.collidepoint(event.pos)
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.button_rect.collidepoint(event.pos):
-                # ВНИМАНИЕ: сам клик-звук теперь будет играться в Shop
-                # только если монет хватает. Здесь звук не трогаем.
                 return "button"
 
         return None
 
 
 class MainMenu:
+    """
+    Класс главного меню игры.
+    Содержит кнопки для запуска игры, магазина, настроек и выхода.
+    """
     def __init__(self, screen, click_sound=None):
         self.screen = screen
         self.font_title = pygame.font.Font("freesansbold.ttf", 64)
@@ -245,6 +283,10 @@ class MainMenu:
             button.draw(self.screen)
 
     def handle_event(self, event):
+        """
+        Обрабатывает события для всех кнопок меню.
+        Возвращает ключ нажатой кнопки (play, shop, settings, quit).
+        """
         for key, button in self.buttons.items():
             if button.handle_event(event):
                 return key
@@ -252,6 +294,10 @@ class MainMenu:
 
 
 class SettingsMenu:
+    """
+    Класс меню настроек.
+    Позволяет управлять звуком, музыкой, фоном и выбирать композицию.
+    """
     def __init__(self, screen, click_sound=None):
         self.screen = screen
         self.font_title = pygame.font.Font("freesansbold.ttf", 48)
@@ -339,6 +385,10 @@ class SettingsMenu:
         )
 
     def draw(self, background):
+        """
+        Отрисовывает меню настроек со всеми элементами управления:
+        заголовок, блоки настроек, иконки, стрелки переключения музыки.
+        """
         self.screen.blit(background, (0, 0))
 
         title_text = "Настройки"
@@ -458,6 +508,11 @@ class SettingsMenu:
         self.back_button.draw(self.screen)
 
     def handle_event(self, event):
+        """
+        Обрабатывает все события в меню настроек:
+        клики по кнопкам, стрелкам переключения музыки, нажатие ESC.
+        Возвращает строку-действие для main.py.
+        """
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 return "back"

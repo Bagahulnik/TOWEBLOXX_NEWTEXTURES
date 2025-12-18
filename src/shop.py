@@ -15,14 +15,14 @@ class Shop:
         asset_loader: AssetLoader,
         click_sound=None,
         error_sound=None,
-        coin_sound=None,  # ✅ ДОБАВЛЕН ПАРАМЕТР
+        coin_sound=None,  
     ):
         self.screen = screen
         self.save_manager = save_manager
         self.asset_loader = asset_loader
         self.click_sound = click_sound
         self.error_sound = error_sound
-        self.coin_sound = coin_sound  # ✅ ИСПРАВЛЕНО (было без self)
+        self.coin_sound = coin_sound  
 
 
         self.font_title = pygame.font.Font("freesansbold.ttf", 32)
@@ -86,7 +86,7 @@ class Shop:
                 is_unlocked,
                 is_selected,
                 preview,
-                click_sound=None,  # клик по кнопке теперь не проигрывает звук сам
+                click_sound=None,  
             )
             self.tower_cards.append(card)
 

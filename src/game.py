@@ -1,3 +1,8 @@
+"""
+Модуль game.py - основная игровая логика Tower Bloxx
+Управляет игровым процессом, обработкой событий, физикой блоков,
+системой комбо, замедлением времени и взаимодействием всех игровых систем.
+"""
 import math
 import pygame
 from pygame import mixer
@@ -10,7 +15,10 @@ from src.particles import ParticleSystem
 
 
 class ImageButton:
-    """Кнопка с картинкой и фоном как в настройках."""
+    """
+    Кнопка с изображением и фоном для интерфейса игры.
+    Используется на экране Game Over для действий (назад, магазин, рестарт).
+    """
     def __init__(self, x, y, image_path, size=(60, 60), click_sound=None):
         raw_image = pygame.image.load(image_path).convert_alpha()
         sprite_size = (size[0] - 2, size[1] - 2)
@@ -21,6 +29,7 @@ class ImageButton:
         self.click_sound = click_sound
 
     def draw(self, screen):
+        """Отрисовывает кнопку с фоном, рамкой и иконкой"""
         base_color = (180, 200, 230)
         border_color = (20, 20, 20)
         if self.is_hovered:
@@ -32,6 +41,7 @@ class ImageButton:
         screen.blit(self.image, (img_x, img_y))
 
     def handle_event(self, event):
+        """Обрабатывает события мыши для кнопки"""
         if event.type == pygame.MOUSEMOTION:
             self.is_hovered = self.rect.collidepoint(event.pos)
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -43,6 +53,11 @@ class ImageButton:
 
 
 class Game:
+    """
+    Главный класс игры Tower Bloxx.
+    Управляет всем игровым процессом: блоками, башней, физикой, комбо,
+    звуками, частицами, анимациями фона и состоянием игры.
+    """
     def __init__(self, screen, save_manager, asset_loader, sound_muted=False):
         self.screen = screen
         self.save_manager = save_manager
@@ -60,37 +75,38 @@ class Game:
         if self.sound_muted:
             for sound in self.sounds.values():
                 sound.set_volume(0.0)
-
+        # Загрузка спрайтов текущей выбранной башни
         self.current_tower_id = save_manager.get_selected_tower()
         self.tower_sprites = asset_loader.load_tower_sprites(self.current_tower_id)
-
+        # Инициализация игровых объектов
         self.block = Block(self.tower_sprites, block_number=0)
         self.tower = Tower(self.tower_sprites)
-
+        # Создание персонажей на воздушных шарах
         self.balloon_guys = pygame.sprite.Group()
         self._create_balloon_guys()
 
-        # КОМБО + ЧАСТИЦЫ + СЛОУ-МО
+        # СИСТЕМА КОМБО И ЭФФЕКТОВ 
         self.particles = ParticleSystem()
         self.combo = 0
         self.combo_timer = 0
         
-        # 🎬 СЛОУ-МО СИСТЕМА
+        # Система замедления времени при высоких комбо
         self.slowmo_active = False
         self.slowmo_timer = 0
         self.slowmo_intensity = 1.0
         
         # 🎙️ СИСТЕМА ГОЛОСОВЫХ ФРАЗ
+        # Отслеживание активности игрока для напоминаний
         self.last_action_time = 0
-        self.blocks_placed = 0
-        self.milestone_cycle = 0
-        self.start_phrase_played = False
-
+        self.blocks_placed = 0 # Для фраз на вехах (5, 10, 20 блоков)
+        self.milestone_cycle = 0 # Цикл фраз после 20 блоков
+        self.start_phrase_played = False # Флаг первого запуска
+        # Игровые параметры
         self.score = 0
         self.misses = 0
         self.force = INITIAL_FORCE
         self.coins_earned = 0
-
+        # Анимация прокрутки фона при росте башни
         self.bg_anim_active = False
         self.bg_anim_progress = 0
         self.bg_anim_target_y = 0
@@ -115,7 +131,7 @@ class Game:
         self.show_start_hint = True
         self.show_exit_confirm = False
         self.people_enabled = False
-
+        # Создание кнопок интерфейса
         cx = SCREEN_WIDTH // 2
         btn_y = 430
         spacing = 100
@@ -126,6 +142,10 @@ class Game:
         self.btn_restart_game = ImageButton(SCREEN_WIDTH - 40, 35, f"{UI_PATH}restart.png", size=(50, 50), click_sound=click_sound)
 
     def _create_balloon_guys(self):
+        """
+        Создаёт персонажей на воздушных шарах.
+        Появляются поочередно с задержками для визуального эффекта.
+        """
         xs = [80, 180, 300, 420]
         speed_y = -1.2
         order = [0, 2, 1, 3]
@@ -140,6 +160,10 @@ class Game:
             self.balloon_guys.add(guy)
 
     def show_score(self):
+        """
+        Отображает панель со счётом, промахами и текущим комбо.
+        Также показывает индикатор замедления времени при активации.
+        """
         score_text = self.score_font.render(f"Score: {self.score}", True, BLACK)
         misses_text = self.miss_font.render(f"Промахи: {self.misses}/{MAX_MISSES}", True, BLACK)
 
@@ -165,7 +189,7 @@ class Game:
         misses_rect = misses_text.get_rect(center=(x_center, y))
         self.screen.blit(misses_text, misses_rect)
 
-        # 🎯 ЭПИЧНЫЙ КОМБО ТЕКСТ
+        # === ОТОБРАЖЕНИЕ КОМБО ===
         if self.combo > 0 and self.combo_timer > 0:
             combo_mult = 1 + min(self.combo * 0.3, 2.5)
             
@@ -204,6 +228,10 @@ class Game:
             self.screen.blit(slowmo_text, slowmo_rect)
 
     def draw_background(self):
+        """
+        Отрисовывает фон игры.
+        При активном замедлении накладывает полупрозрачный тёмно-синий оверлей.
+        """
         self.screen.blit(self.bg_big, (0, self.bg_y))
         
         if self.slowmo_active:
@@ -213,6 +241,11 @@ class Game:
             self.screen.blit(overlay, (0, 0))
 
     def draw(self):
+        """
+        Главная функция отрисовки игрового экрана.
+        Рисует все элементы в правильном порядке: фон, кран, частицы,
+        персонажей, башню, блок и интерфейс.
+        """
         self.draw_background()
         self.screen.blit(self.crane_image, (0, 0))
         self.particles.draw(self.screen)
@@ -247,6 +280,10 @@ class Game:
             self.draw_exit_confirm()
 
     def draw_start_hint(self):
+        """
+        Отображает начальную подсказку о том, как начать игру.
+        Появляется при первом запуске, исчезает после первого нажатия SPACE.
+        """
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 120))
         self.screen.blit(overlay, (0, 0))
@@ -265,6 +302,10 @@ class Game:
         self.screen.blit(line2, line2_rect)
 
     def draw_exit_confirm(self):
+        """
+        Отображает диалог подтверждения выхода в меню.
+        Появляется при нажатии ESC во время игры.
+        """
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 150))
         self.screen.blit(overlay, (0, 0))
@@ -296,6 +337,11 @@ class Game:
         self.screen.blit(line2, line2_rect)
 
     def handle_game_events(self, event):
+        """
+        Обрабатывает события во время активной игры:
+        нажатия клавиш (SPACE для сброса блока, ESC для выхода),
+        клики по кнопке рестарта.
+        """
         if self.show_exit_confirm:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RETURN:
@@ -324,13 +370,24 @@ class Game:
         return None
 
     def activate_slowmo(self, duration=SLOWMO_DURATION, factor=SLOWMO_FACTOR):
-        """🎬 Активировать эффект замедления"""
+        """
+        Активирует эффект замедления времени.
+        Используется при достижении высоких уровней комбо.
+        
+        Параметры:
+        - duration: длительность эффекта в кадрах
+        - factor: коэффициент замедления (0.3 = 30% скорости)
+        """
         self.slowmo_active = True
         self.slowmo_timer = duration
         self.slowmo_intensity = factor
 
     def update(self):
-        # 🎬 ОБНОВЛЕНИЕ СЛОУ-МО
+        """
+        Главная функция обновления игровой логики каждый кадр.
+        Обрабатывает физику блока, состояния, комбо, прокрутку фона,
+        персонажей и проверяет условия окончания игры.
+        """
         if self.slowmo_active:
             self.slowmo_timer -= 1
             if self.slowmo_timer <= 0:
@@ -499,11 +556,13 @@ class Game:
         self.check_game_over()
 
     def _play_milestone_phrase(self, is_golden=False):
-        """🎙️ Фразы по вехам (пропускаются если золотой блок)"""
+        """
+        Воспроизводит голосовые фразы при достижении вех (5, 10, 20+ блоков).
+        Пропускается, если текущий блок был золотым (чтобы не перебивать "perfect").
+        """
         if self.sound_muted:
             return
         
-        # 🎯 ПРИОРИТЕТ: если золотой блок - не играем фразы вех
         if is_golden:
             return
         
@@ -524,20 +583,21 @@ class Game:
 
 
     def check_game_over(self):
-        """Теперь конец игры только по промахам, башня не рушится по ширине."""
+        """
+        Проверяет условия окончания игры.
+        Сейчас игра завершается только по промахам.
+        Ширина башни используется только для усиления качания.
+        """
         width = self.tower.get_width()
 
-        # Можно использовать ширину только для логики, но НЕ для конца игры.
-        # Например, если очень широко — просто гарантированно включить качание:
         if abs(width) > 140 and self.tower.size >= 5:
             self.tower.wobbling = True
 
-        # ВАЖНО: никаких collapse(), никаких game_over_reason тут.
-        # Завершение игры происходит только в логике промахов (state == "miss")
-        # и через self.end_game(), как уже сделано выше в update().
-
 
     def end_game(self):
+        """
+        Завершает игру, обновляет рекорд и воспроизводит фразу при побитии рекорда.
+        """
         self.game_over = True
         
         # 🎙️ TOP SCORE
@@ -550,6 +610,10 @@ class Game:
         self.show_start_hint = False
 
     def reset(self):
+        """
+        Сбрасывает все параметры игры для начала новой сессии.
+        Перезагружает блок, башню, обнуляет счёт и флаги.
+        """
         self.current_tower_id = self.save_manager.get_selected_tower()
         self.tower_sprites = self.asset_loader.load_tower_sprites(self.current_tower_id)
 
@@ -583,6 +647,10 @@ class Game:
         self.people_enabled = False
 
     def draw_game_over_screen(self):
+        """
+        Отрисовывает экран Game Over с итоговыми результатами,
+        причиной окончания, заработанными монетами и кнопками действий.
+        """
         self.screen.blit(self.bg_end, (0, 0))
 
         title = self.over_font.render("GAME OVER", True, BLACK)
@@ -642,6 +710,11 @@ class Game:
         self.screen.blit(hint3, hint3.get_rect(center=(cx + btn_spacing, hint_y)))
 
     def handle_game_over_input(self, event):
+        """
+        Обрабатывает события на экране Game Over:
+        клики по кнопкам и нажатия клавиш для перехода в меню,
+        магазин или перезапуска игры.
+        """
         if self.btn_back.handle_event(event):
             return 'menu'
         if self.btn_shop.handle_event(event):

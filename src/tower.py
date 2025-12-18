@@ -1,9 +1,18 @@
+"""
+Модуль tower.py - класс построенной башни
+Управляет структурой башни, её отрисовкой, качанием и прокруткой.
+Хранит информацию о всех размещённых блоках и их координатах.
+"""
 import pygame
 
 from src.constants import *
 
 
 class Tower(pygame.sprite.Sprite):
+    """
+    Класс башни - основная конструкция, которую строит игрок.
+    Отвечает за хранение блоков, динамическое качание и визуализацию.
+    """
     def __init__(self, tower_sprites):
         pygame.sprite.Sprite.__init__(self)
 
@@ -18,17 +27,17 @@ class Tower(pygame.sprite.Sprite):
         self.x = 0
 
         self.height = 0
-
-        self.xlist = []
-        self.sprite_list = []
-        self.golden_list = []
+        # Списки для хранения данных о каждом блоке
+        self.xlist = [] # Горизонтальные координаты всех блоков
+        self.sprite_list = [] # Типы и индексы спрайтов блоков
+        self.golden_list = [] # Флаги золотых блоков (идеальные попадания)
 
         self.onscreen = 0
 
-        # смещение башни для качания
-        self.change = 0
-        self.speed = WOBBLE_SPEED
-        self.wobbling = False
+        # Динамическое качание делает игру сложнее с ростом высоты
+        self.change = 0  # Текущее смещение от центра (в пикселях)
+        self.speed = WOBBLE_SPEED # Скорость качания
+        self.wobbling = False # Флаг активности качания
 
         self.scrolling = False
         self.golden = False
@@ -37,6 +46,7 @@ class Tower(pygame.sprite.Sprite):
         self.collapse_reason = None
 
     def get_display(self):
+        """Возвращает статус отображения башни"""
         return self.display_status
 
     def is_scrolling(self):
@@ -46,10 +56,14 @@ class Tower(pygame.sprite.Sprite):
         return self.golden
 
     def get_top_y(self):
+        """Возвращает Y координату верха башни"""
         return self.y
 
     def build(self, block):
-        # увеличиваем размер
+        """
+        Добавляет новый блок в башню после успешного приземления.
+        Обновляет размер, высоту и списки координат/спрайтов.
+        """
         self.size += 1
         self.onscreen = self.size
 
@@ -63,7 +77,7 @@ class Tower(pygame.sprite.Sprite):
             self.sprite_list.append((block.sprite_type, block.sprite_index))
             self.golden_list.append(self.golden)
 
-        # высота и позиция от земли, БЕЗ потолка по верёвке
+        # Пересчитываем высоту и Y координату башни
         self.height = self.size * BLOCK_HEIGHT
         base_y = SCREEN_HEIGHT - BLOCK_HEIGHT
         self.y = base_y - (self.height - BLOCK_HEIGHT)
@@ -74,6 +88,10 @@ class Tower(pygame.sprite.Sprite):
 
 
     def get_width(self):
+        """
+        Вычисляет общую ширину башни.
+        Положительная если башня наклонена вправо, отрицательная влево.
+        """
         width = BLOCK_WIDTH
         if self.size <= 0:
             return width
@@ -86,6 +104,11 @@ class Tower(pygame.sprite.Sprite):
         return width
 
     def draw(self):
+        """
+        Создаёт поверхность с отрисованной башней.
+        Рисует все блоки снизу вверх с правильными спрайтами.
+        Возвращает готовую поверхность для отображения.
+        """
         if self.size >= 1:
             surf = pygame.Surface((800, self.onscreen * BLOCK_HEIGHT), pygame.SRCALPHA)
             surf = surf.convert_alpha()
@@ -109,8 +132,12 @@ class Tower(pygame.sprite.Sprite):
         return surf
 
     def unbuild(self, block):
+        """
+        Удаляет верхний блок из башни при промахе.
+        Используется для анимации разрушения или падения блока.
+        """
         self.display_status = False
-
+        # Синхронизируем позицию блока с верхом башни
         if self.y > block.y:
             block.y = self.y
 
@@ -136,7 +163,10 @@ class Tower(pygame.sprite.Sprite):
         return surf
 
     def collapse(self, direction):
-        # сейчас не используется, оставлен на будущее
+        """
+        Анимация разрушения башни (сдвиг и падение).
+        Сейчас не используется в игре.
+        """
         self.y += 5
         if direction == "l":
             self.x -= 5
@@ -144,10 +174,13 @@ class Tower(pygame.sprite.Sprite):
             self.x += 5
 
     def wobble(self):
-        """Качание башни вокруг текущего X.
-
-        Амплитуда зависит от высоты башни и кривизны,
-        а скорость качания растёт с количеством блоков.
+        """
+        Обновляет качание башни вокруг центральной оси.
+        
+        Логика качания:
+        - Амплитуда растёт с высотой башни и её кривизной
+        - Скорость качания увеличивается после 15 блоков
+        - Качание активируется при достижении 3 блоков
         """
         width = self.get_width()
 
@@ -189,6 +222,10 @@ class Tower(pygame.sprite.Sprite):
 
 
     def display(self, screen, scroll_y=0):
+        """
+        Отображает башню на экране с учётом качания и прокрутки.
+        scroll_y используется для плавной прокрутки при росте башни.
+        """
         surf = self.draw()
         x = int(self.x + self.change)
         y = int(self.y + scroll_y)

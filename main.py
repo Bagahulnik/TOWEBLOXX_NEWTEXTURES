@@ -1,3 +1,8 @@
+"""
+Модуль main.py - точка входа в приложение Tower Bloxx
+Отвечает за инициализацию Pygame, создание окна, загрузку ресурсов
+и управление главным игровым циклом с переходами между состояниями
+"""
 import pygame
 from pygame import mixer
 
@@ -16,30 +21,30 @@ def main():
     pygame.mixer.pre_init(44100, 16, 2, 4096)
     pygame.mixer.init()
 
-    # ✅ ВИРТУАЛЬНЫЙ ЭКРАН (ЛОГИКА ИГРЫ)
+    #ВИРТУАЛЬНЫЙ ЭКРАН (ЛОГИКА ИГРЫ)
     VIRTUAL_WIDTH = SCREEN_WIDTH
     VIRTUAL_HEIGHT = SCREEN_HEIGHT
     virtual_screen = pygame.Surface((VIRTUAL_WIDTH, VIRTUAL_HEIGHT))
 
-    # ✅ ОПРЕДЕЛЕНИЕ РАЗМЕРА МОНИТОРА
+    #ОПРЕДЕЛЕНИЕ РАЗМЕРА МОНИТОРА
     display_info = pygame.display.Info()
     monitor_width = display_info.current_w
     monitor_height = display_info.current_h
     
-    # ✅ ОТСТУПЫ ОТ КРАЁВ МОНИТОРА (для панели задач и рамок)
+    # ОТСТУПЫ ОТ КРАЁВ МОНИТОРА (для панели задач и рамок)
     MARGIN = 80  # отступ 80px сверху/снизу для панели задач
     
-    # ✅ МАКСИМАЛЬНО ДОСТУПНАЯ ВЫСОТА
+    # МАКСИМАЛЬНО ДОСТУПНАЯ ВЫСОТА
     max_available_height = monitor_height - MARGIN
     
-    # ✅ РАСЧЁТ РАЗМЕРА ОКНА С СОХРАНЕНИЕМ ПРОПОРЦИЙ 9:16
+    # РАСЧЁТ РАЗМЕРА ОКНА С СОХРАНЕНИЕМ ПРОПОРЦИЙ 9:16
     aspect_ratio = VIRTUAL_WIDTH / VIRTUAL_HEIGHT  # 540/960 = 0.5625 (9:16)
     
     # Подбираем размер по высоте монитора
     WINDOW_HEIGHT = min(max_available_height, 900)  # не больше 900px
     WINDOW_WIDTH = int(WINDOW_HEIGHT * aspect_ratio)
     
-    # ✅ СОЗДАНИЕ ОКНА
+    #СОЗДАНИЕ ОКНА
     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
     pygame.display.set_caption("Tower Bloxx")
 
@@ -84,7 +89,7 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
 
-            # ✅ ПЕРЕСЧЁТ КООРДИНАТ МЫШИ (виртуальный экран → реальное окно)
+            #ПЕРЕСЧЁТ КООРДИНАТ МЫШИ (виртуальный экран → реальное окно)
             if event.type in (
                 pygame.MOUSEMOTION,
                 pygame.MOUSEBUTTONDOWN,
@@ -128,6 +133,7 @@ def main():
                     running = False
 
             elif state == "settings":
+                # ESC возвращает в главное меню
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     state = "menu"
                 else:
@@ -143,11 +149,13 @@ def main():
                         settings_menu.sfx_muted = sfx_muted
                         for s in sounds.values():
                             s.set_volume(0.0 if sfx_muted else 1.0)
+                        # Если игра активна, обновляем и её звуки
                         if game:
                             game.sound_muted = sfx_muted
                             for s in game.sounds.values():
                                 s.set_volume(0.0 if sfx_muted else 1.0)
                     elif action == "toggle_bg":
+                        # Переключаем фоновое изображение
                         current_bg_index = settings_menu.bg_index
                     elif action == "music_change":
                         current_track_index = settings_menu.music_index
@@ -156,7 +164,7 @@ def main():
                         )
                         pygame.mixer.music.play(-1)
                         pygame.mixer.music.set_volume(0.0 if music_muted else 1.0)
-
+            # ИГРОВОЙ ПРОЦЕСС
             elif state == "game":
                 if game:
                     if not game.game_over:
@@ -172,11 +180,13 @@ def main():
                                 sound_muted=sfx_muted,
                             )
                     else:
+                        # Игра завершена - обрабатываем экран Game Over
                         result = game.handle_game_over_input(event)
                         if result == "menu":
                             state = "menu"
                             game = None
                         elif result == "shop":
+                            # Открываем магазин после завершения игры
                             previous_state = "game_over"
                             state = "shop"
                             shop = Shop(
@@ -188,6 +198,7 @@ def main():
                                 coin_sound=coin_sound,
                             )
                         elif result == "restart":
+                            # Перезапуск игры с экрана Game Over
                             game = Game(
                                 virtual_screen,
                                 save_manager,
@@ -197,6 +208,7 @@ def main():
 
             elif state == "shop":
                 if shop:
+                    # ESC возвращает в предыдущее состояние
                     if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                         if previous_state == "game_over":
                             state = "game"
@@ -209,9 +221,9 @@ def main():
                                 state = "game"
                             else:
                                 state = "menu"
-
+        # Очищаем виртуальный экран белым цветом
         virtual_screen.fill(WHITE)
-
+        # Отрисовываем текущий экран
         if state == "menu":
             main_menu.draw(backgrounds[current_bg_index])
         elif state == "settings":
