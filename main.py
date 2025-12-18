@@ -239,7 +239,7 @@ def main():
             if shop:
                 shop.draw(backgrounds[current_bg_index])
 
-        # ✅ МАСШТАБИРОВАНИЕ ВИРТУАЛЬНОГО ЭКРАНА НА РЕАЛЬНОЕ ОКНО
+        # МАСШТАБИРОВАНИЕ ВИРТУАЛЬНОГО ЭКРАНА НА РЕАЛЬНОЕ ОКНО
         scaled = pygame.transform.smoothscale(
             virtual_screen, (WINDOW_WIDTH, WINDOW_HEIGHT)
         )
