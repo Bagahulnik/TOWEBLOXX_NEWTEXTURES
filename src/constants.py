@@ -28,11 +28,11 @@ HOOK_ATTACH_OFFSET_Y = 30
 # -------- Физика --------
 GRAVITY = 0.4
 INITIAL_FORCE = -0.0015
-FORCE_ACCELERATION = 1.015  # +1.5% за блок (можно 1.01-1.03)
+FORCE_ACCELERATION = 1.1  # +1.5% за блок (можно 1.01-1.03)
 COLLAPSE_THRESHOLD = 0.5
 
 # -------- Шатание башни --------
-WOBBLE_SPEED = 0.7
+WOBBLE_SPEED = 1
 WOBBLE_LIMIT = 18
 WOBBLE_GROWTH_PER_BLOCK = 0.6  # насколько растёт амплитуда за 1 блок
 WOBBLE_MAX_LIMIT = 90          # жёсткий максимум, чтобы не улетало
