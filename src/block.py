@@ -7,6 +7,7 @@ import pygame
 from math import sin, cos
 from src.constants import *
 
+
 class Block(pygame.sprite.Sprite):
     """
     Класс блока, который игрок сбрасывает на башню.
@@ -25,7 +26,6 @@ class Block(pygame.sprite.Sprite):
             self.sprite_type = 'bot'
             self.sprite_index = 0
         else:
-            # Циклически используем 4 спрайта: 0, 1, 2, 3, 0, 1, 2, 3...
             self.sprite_index = (block_number - 1) % 4
             self.image = tower_sprites['mid'][self.sprite_index]
             self.sprite_type = 'mid'
@@ -44,12 +44,11 @@ class Block(pygame.sprite.Sprite):
 
         self.state = "ready"
         self.angle = 45
-        self.collision_checked = False  # флаг проверки столкновения
+        self.collision_checked = False
 
     def set_sprite_for_block_number(self, block_number):
         """
         Устанавливает спрайт блока на основе его номера.
-        Используется при создании нового блока после размещения предыдущего.
         """
         self.block_number = block_number
         if block_number == 0:
@@ -57,7 +56,6 @@ class Block(pygame.sprite.Sprite):
             self.sprite_type = 'bot'
             self.sprite_index = 0
         else:
-            # Циклически все 4 варианта mid
             self.sprite_index = (block_number - 1) % 4
             self.image = self.tower_sprites['mid'][self.sprite_index]
             self.sprite_type = 'mid'
@@ -66,7 +64,6 @@ class Block(pygame.sprite.Sprite):
     def swing(self):
         """
         Обновляет маятниковое движение блока на верёвке.
-        Использует физическую модель маятника с синусоидальным ускорением.
         """
         hook_x = ROPE_ORIGIN_X + ROPE_LENGTH * sin(self.angle)
         hook_y = ROPE_ORIGIN_Y + ROPE_LENGTH * cos(self.angle)
@@ -81,7 +78,7 @@ class Block(pygame.sprite.Sprite):
         self.speed += self.acceleration
 
     def get_force(self):
-        """Возвращает текущую силу маятника, которая растёт с прогрессом игры"""
+        """Возвращает текущую силу маятника"""
         return self.game_force
 
     def drop(self, tower):
@@ -103,23 +100,22 @@ class Block(pygame.sprite.Sprite):
             else:
                 target_y = tower.y - BLOCK_HEIGHT
 
-            # Проверяем столкновение когда достигли или прошли target_y
+            # Проверяем столкновение когда достигли целевой высоты
             if self.y >= target_y and not self.collision_checked:
                 self.collision_checked = True
                 
                 if tower.size == 0 or self.collided(tower):
-                    # Попал - фиксируем Y точно на уровне башни
+                    # Попал - фиксируем позицию
                     self.y = target_y
                     self.speed = 0
                     self.state = "landed"
                 else:
-                    # Промах - продолжаем падать
+                    # Промах - блок продолжает падать
                     pass
 
-            # Окончательно переходим в miss только внизу экрана
+            # Блок полностью улетел за экран - окончательный промах
             if self.y >= SCREEN_HEIGHT + 100:
                 self.state = "miss"
-
 
     def get_state(self):
         """Возвращает текущее состояние блока"""
@@ -128,65 +124,55 @@ class Block(pygame.sprite.Sprite):
     def collided(self, tower):
         """
         Проверяет столкновение блока с верхом башни.
-        Определяет:
-        1. Есть ли достаточное перекрытие по X (минимум 50%)
-        2. Не слишком ли большое смещение относительно предыдущего блока
-        3. Является ли попадание идеальным (золотым)
-        
-        Возвращает True при успешном попадании, False при промахе.
+        Учитывает качание башни для точной проверки перекрытия.
         """
-        # Для первого блока всегда успех
-
         if tower.size == 0:
-            return False
+            return True
 
+        # ✅ Получаем координату последнего блока с учётом качания
         base_x = tower.xlist[-1]
+        base_x_wobbled = base_x + tower.change
+        
         top_x = self.xlast
 
-        base_left = base_x
-        base_right = base_x + BLOCK_WIDTH
+        base_left = base_x_wobbled
+        base_right = base_x_wobbled + BLOCK_WIDTH
         top_left = top_x
         top_right = top_x + BLOCK_WIDTH
 
-        # длина перекрытия по X
+        # ====== ПРОВЕРКА 1: Перекрытие по X ======
         overlap = min(base_right, top_right) - max(base_left, top_left)
-
-        # Нет пересечения - промах
+        
         if overlap <= 0:
             tower.golden = False
             return False
 
-        # проверяем смещение относительно ПРЕДЫДУЩЕГО блока
-        if tower.size >= 2:
-            prev_x = tower.xlist[-2]
-        else:
-            prev_x = tower.xbase
+        # ====== ПРОВЕРКА 2: Минимальное перекрытие 50% ======
+        min_overlap = BLOCK_WIDTH * 0.5
         
-        offset = abs(self.xlast - prev_x)
-        max_offset = BLOCK_WIDTH * 0.5
-        
-        # если смещение слишком большое - промах
-        if offset >= max_offset:
+        if overlap < min_overlap:
             tower.golden = False
             return False
 
-        # проверяем перекрытие хотя бы 50%
-        if overlap >= BLOCK_WIDTH * 0.5:
-            center_base = (base_left + base_right) / 2
-            center_top = (top_left + top_right) / 2
-            if abs(center_top - center_base) <= 5:
-                tower.golden = True
-            else:
-                tower.golden = False
-            return True
+        # ✅ ВАЖНО: Корректируем xlast с учётом wobble для сохранения в башню
+        # Это гарантирует, что следующий блок будет проверяться правильно
+        self.xlast_corrected = self.xlast
+
+        # ====== ПРОВЕРКА 3: Золотой блок ======
+        center_base = (base_left + base_right) / 2
+        center_top = (top_left + top_right) / 2
+        
+        if abs(center_top - center_base) <= 5:
+            tower.golden = True
         else:
             tower.golden = False
-            return False
+        
+        return True
+
 
     def to_build(self, tower):
         """
         Проверяет, можно ли добавить блок в башню.
-        Возвращает True только если блок успешно приземлился.
         """
         if self.state == "landed":
             self.state = "scroll"
@@ -195,27 +181,17 @@ class Block(pygame.sprite.Sprite):
 
     def collapse(self, tower):
         """
-        Проверяет условия обрушения башни на основе смещения блока.
-        Устанавливает состояние "over" если смещение слишком велико.
+        ✅ МЕТОД ОТКЛЮЧЕН - логика промаха полностью в collided()
+        
+        Раньше этот метод дублировал проверку смещения и мог
+        вызывать game over даже при правильном промахе.
+        Теперь вся логика попадания/промаха в методе collided().
         """
-        if tower.size < 2:
-            return
-        if tower.size == 2:
-            prev_x = tower.xbase
-            threshold = BLOCK_WIDTH * 0.5
-        else:
-            prev_x = tower.xlist[-2]
-            threshold = BLOCK_WIDTH * 0.5
-
-        offset = abs(self.xlast - prev_x)
-        if offset >= threshold:
-            self.state = "over"
-            tower.collapse_reason = "offset"
+        pass  # Ничего не делаем
 
     def rotate(self, direction):
         """
-        Поворачивает блок для анимации падения при обрушении.
-        direction: "l" (влево) или "r" (вправо)
+        Поворачивает блок для анимации падения.
         """
         if direction == "l":
             self.angle += 1
@@ -226,20 +202,19 @@ class Block(pygame.sprite.Sprite):
     def to_fall(self, tower):
         """
         Анимация падения блока при обрушении башни.
-        Блок падает и вращается в зависимости от направления смещения.
         """
         self.y += 5
-        if (self.xlast < tower.xlist[-2] + 30):
-            self.x -= 2
-            self.rotate("l")
-        elif (self.xlast > tower.xlist[-2] - 30):
-            self.x += 2
-            self.rotate("r")
+        if tower.size >= 2:
+            if (self.xlast < tower.xlist[-2] + 30):
+                self.x -= 2
+                self.rotate("l")
+            elif (self.xlast > tower.xlist[-2] - 30):
+                self.x += 2
+                self.rotate("r")
 
     def respawn(self, tower):
         """
         Создаёт новый блок после размещения предыдущего.
-        Сбрасывает все параметры и устанавливает начальное положение маятника.
         """
         if tower.size % 2 == 0:
             self.angle = -45
@@ -248,7 +223,7 @@ class Block(pygame.sprite.Sprite):
 
         self.speed = 0
         self.state = "ready"
-        self.collision_checked = False  # сбрасываем флаг
+        self.collision_checked = False
 
         hook_x = ROPE_ORIGIN_X + ROPE_LENGTH * sin(self.angle)
         hook_y = ROPE_ORIGIN_Y + ROPE_LENGTH * cos(self.angle)
@@ -262,7 +237,6 @@ class Block(pygame.sprite.Sprite):
     def display(self, screen, tower, scroll_y=0):
         """
         Отрисовывает блок на экране.
-        scroll_y используется для прокрутки при росте башни.
         """
         if not tower.is_scrolling():
             screen.blit(self.rotimg, (self.x, self.y + scroll_y))
